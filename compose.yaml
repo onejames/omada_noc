@@ -1,0 +1,16 @@
+services:
+  noc_dash:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: noc_dash
+    image: noc_dash:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0

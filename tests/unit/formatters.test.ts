@@ -1,0 +1,105 @@
+import { describe, it, expect } from 'vitest';
+import {
+  formatBytes,
+  formatRate,
+  formatUptime,
+  formatMac,
+} from '@/lib/omada/formatters';
+
+describe('formatters', () => {
+  describe('formatBytes', () => {
+    it('returns "0 B" for undefined, null, NaN, and 0', () => {
+      expect(formatBytes(undefined)).toBe('0 B');
+      expect(formatBytes(null)).toBe('0 B');
+      expect(formatBytes(NaN)).toBe('0 B');
+      expect(formatBytes(0)).toBe('0 B');
+    });
+
+    it('formats bytes, kilobytes, megabytes, gigabytes, and terabytes', () => {
+      expect(formatBytes(500)).toBe('500 B');
+      expect(formatBytes(1024)).toBe('1 KB');
+      expect(formatBytes(1536)).toBe('1.5 KB');
+      expect(formatBytes(1048576)).toBe('1 MB');
+      expect(formatBytes(1073741824)).toBe('1 GB');
+      expect(formatBytes(1099511627776)).toBe('1 TB');
+      expect(formatBytes(1125899906842624)).toBe('1 PB');
+      expect(formatBytes(1125899906842624 * 1024)).toBe('1024 PB'); // Clamps to largest unit
+    });
+
+    it('handles custom decimal places and negative decimal edge case', () => {
+      expect(formatBytes(1536, 0)).toBe('2 KB');
+      expect(formatBytes(1536, 3)).toBe('1.5 KB');
+      expect(formatBytes(1536, -1)).toBe('2 KB');
+    });
+  });
+
+  describe('formatRate', () => {
+    it('returns "0 B/s" for undefined, null, NaN, and 0', () => {
+      expect(formatRate(undefined)).toBe('0 B/s');
+      expect(formatRate(null)).toBe('0 B/s');
+      expect(formatRate(NaN)).toBe('0 B/s');
+      expect(formatRate(0)).toBe('0 B/s');
+    });
+
+    it('formats rates across units with default and custom decimals', () => {
+      expect(formatRate(512)).toBe('512 B/s');
+      expect(formatRate(2048)).toBe('2 KB/s');
+      expect(formatRate(2560, 2)).toBe('2.5 KB/s');
+      expect(formatRate(1048576 * 5)).toBe('5 MB/s');
+      expect(formatRate(1073741824 * 2.5, 1)).toBe('2.5 GB/s');
+      expect(formatRate(1073741824 * 1024, -1)).toBe('1024 GB/s'); // negative decimal clamped to 0
+    });
+  });
+
+  describe('formatUptime', () => {
+    it('returns "0s" for undefined, null, 0, or negative seconds', () => {
+      expect(formatUptime(undefined)).toBe('0s');
+      expect(formatUptime(null)).toBe('0s');
+      expect(formatUptime(0)).toBe('0s');
+      expect(formatUptime(-50)).toBe('0s');
+    });
+
+    it('formats seconds only', () => {
+      expect(formatUptime(45)).toBe('45s');
+    });
+
+    it('formats minutes and seconds for durations under 5 minutes', () => {
+      expect(formatUptime(150)).toBe('2m 30s');
+    });
+
+    it('formats minutes only for durations over 5 minutes without hours', () => {
+      expect(formatUptime(600)).toBe('10m');
+    });
+
+    it('formats hours and minutes', () => {
+      expect(formatUptime(3720)).toBe('1h 2m');
+    });
+
+    it('formats days and hours', () => {
+      expect(formatUptime(90000)).toBe('1d 1h');
+      expect(formatUptime(172800)).toBe('2d');
+    });
+  });
+
+  describe('formatMac', () => {
+    it('returns placeholder for undefined, null, or empty string', () => {
+      expect(formatMac(undefined)).toBe('--:--:--:--:--:--');
+      expect(formatMac(null)).toBe('--:--:--:--:--:--');
+      expect(formatMac('')).toBe('--:--:--:--:--:--');
+    });
+
+    it('formats 12-character hex strings with colons', () => {
+      expect(formatMac('aabbccddeeff')).toBe('AA:BB:CC:DD:EE:FF');
+      expect(formatMac('001122334455')).toBe('00:11:22:33:44:55');
+    });
+
+    it('cleans up already colon/hyphen separated MACs and capitalizes', () => {
+      expect(formatMac('aa-bb-cc-dd-ee-ff')).toBe('AA:BB:CC:DD:EE:FF');
+      expect(formatMac('AA:BB:CC:DD:EE:FF')).toBe('AA:BB:CC:DD:EE:FF');
+    });
+
+    it('falls back to uppercase for invalid length strings', () => {
+      expect(formatMac('invalid_mac')).toBe('INVALID_MAC');
+    });
+  });
+});
