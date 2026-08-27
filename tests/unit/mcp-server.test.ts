@@ -217,4 +217,161 @@ describe('MCP Server Bridge', () => {
       expect(result.content[0].text).toContain('Error retrieving active clients: Auth token invalid');
     });
   });
+
+  describe('Tool: get_network_devices', () => {
+    const mockDevices = [
+      {
+        mac: '3C-64-CF-9E-F6-CC',
+        name: 'West AP',
+        type: 'ap',
+        model: 'EAP670',
+        ip: '192.168.100.22',
+        status: 14,
+        clientNum: 15,
+        cpuUtil: 18,
+        memUtil: 62,
+      },
+      {
+        mac: '30-68-93-E8-29-54',
+        name: 'Backbone',
+        type: 'switch',
+        model: 'SG2218P',
+        ip: '192.168.100.3',
+        status: 14,
+        clientNum: 5,
+        cpuUtil: 10,
+        memUtil: 50,
+      },
+      {
+        mac: 'EC-75-0C-2C-A4-68',
+        name: 'Main Gateway',
+        type: 'gateway',
+        model: 'ER7206',
+        ip: '192.168.100.1',
+        status: 14,
+        clientNum: 0,
+        cpuUtil: 2,
+        memUtil: 20,
+      },
+    ];
+
+    it('returns list of network infrastructure devices', async () => {
+      vi.spyOn(omadaClient, 'getDevices').mockResolvedValue(mockDevices as any);
+
+      const toolHandler = (server as any)._registeredTools?.get_network_devices?.handler;
+      expect(toolHandler).toBeDefined();
+
+      const result = await toolHandler({ device_type: 'all' });
+      expect(result.content[0].text).toContain('Network Infrastructure Devices (3 found');
+      expect(result.content[0].text).toContain('West AP');
+      expect(result.content[0].text).toContain('Backbone');
+      expect(result.content[0].text).toContain('Main Gateway');
+    });
+
+    it('handles empty results and returns descriptive message', async () => {
+      vi.spyOn(omadaClient, 'getDevices').mockResolvedValue([]);
+      const toolHandler = (server as any)._registeredTools?.get_network_devices?.handler;
+
+      const result = await toolHandler({ device_type: 'gateway' });
+      expect(result.content[0].text).toContain('No network infrastructure devices found matching filter');
+    });
+
+    it('handles exceptions and returns error object', async () => {
+      vi.spyOn(omadaClient, 'getDevices').mockRejectedValue(new Error('Hardware API timeout'));
+      const toolHandler = (server as any)._registeredTools?.get_network_devices?.handler;
+
+      const result = await toolHandler({});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Error retrieving network devices: Hardware API timeout');
+    });
+  });
+
+  describe('Tool: get_client_detail', () => {
+    const mockDetail = {
+      mac: 'CC-6E-A4-5B-19-1F',
+      name: 'Master Bedroom TV',
+      ip: '192.168.100.46',
+      wireless: true,
+      ssid: 'TheFarmStrlnk',
+      apName: 'West AP',
+      wifiMode: 6,
+      rssi: -63,
+      signalLevel: 80,
+      channel: 104,
+      rxRate: 2402000,
+      txRate: 2402000,
+      activity: 500000,
+      trafficDown: 1000000000,
+      trafficUp: 200000000,
+      uptime: 86400,
+      deviceType: 'SmartTV',
+    };
+
+    it('returns formatted deep inspection for matching client', async () => {
+      vi.spyOn(omadaClient, 'getClientDetail').mockResolvedValue(mockDetail as any);
+
+      const toolHandler = (server as any)._registeredTools?.get_client_detail?.handler;
+      expect(toolHandler).toBeDefined();
+
+      const result = await toolHandler({ query: '192.168.100.46' });
+      expect(result.content[0].text).toContain('Detailed Device Inspection: Master Bedroom TV');
+      expect(result.content[0].text).toContain('192.168.100.46');
+      expect(result.content[0].text).toContain('CC:6E:A4:5B:19:1F');
+      expect(result.content[0].text).toContain('RSSI: `-63 dBm`');
+      expect(result.content[0].text).toContain('RF Channel:** 104');
+    });
+
+    it('returns not found message when device does not exist', async () => {
+      vi.spyOn(omadaClient, 'getClientDetail').mockResolvedValue(null);
+
+      const toolHandler = (server as any)._registeredTools?.get_client_detail?.handler;
+      const result = await toolHandler({ query: 'NonExistent' });
+      expect(result.content[0].text).toContain('No active device found matching query "NonExistent"');
+    });
+
+    it('handles exceptions and returns error object', async () => {
+      vi.spyOn(omadaClient, 'getClientDetail').mockRejectedValue(new Error('Database lock'));
+      const toolHandler = (server as any)._registeredTools?.get_client_detail?.handler;
+
+      const result = await toolHandler({ query: '192.168.100.1' });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Error inspecting client detail: Database lock');
+    });
+  });
+
+  describe('Tool: audit_network_health', () => {
+    const mockAudit = {
+      timestamp: '2026-08-26T12:00:00Z',
+      healthScore: 85,
+      controllerStatus: 'Online ✅',
+      totalDevices: 14,
+      totalClients: 73,
+      alerts: ['1 infrastructure device is isolated'],
+      warnings: ['AP Load Imbalance on Main Center AP'],
+      recommendations: ['Enable Fast Roaming 802.11k/v'],
+    };
+
+    it('returns full diagnostic audit report with alerts and recommendations', async () => {
+      vi.spyOn(omadaClient, 'getNetworkHealthAudit').mockResolvedValue(mockAudit);
+
+      const toolHandler = (server as any)._registeredTools?.audit_network_health?.handler;
+      expect(toolHandler).toBeDefined();
+
+      const result = await toolHandler({});
+      expect(result.content[0].text).toContain('Omada Network Health & Performance Audit');
+      expect(result.content[0].text).toContain('85/100');
+      expect(result.content[0].text).toContain('1 infrastructure device is isolated');
+      expect(result.content[0].text).toContain('AP Load Imbalance');
+      expect(result.content[0].text).toContain('Enable Fast Roaming 802.11k/v');
+    });
+
+    it('handles exceptions and returns error object', async () => {
+      vi.spyOn(omadaClient, 'getNetworkHealthAudit').mockRejectedValue(new Error('Audit calculation error'));
+      const toolHandler = (server as any)._registeredTools?.audit_network_health?.handler;
+
+      const result = await toolHandler({});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Error performing network health audit: Audit calculation error');
+    });
+  });
 });

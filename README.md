@@ -8,8 +8,8 @@ Built with **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, **Typ
 
 ## 🌐 Architecture & Topology
 
-- **Physical Network Device:** Physical TP-Link Omada SDN Hardware Controller Appliance on LAN at `192.168.100.2` managing real hardware infrastructure (Access Points, Switches, Gateway, 70+ client devices).
-- **Application Platform:** `noc_dash` full-stack Next.js 16 / React 19 web application & MCP stdio server bridge.
+- **Physical Network Device:** Physical TP-Link Omada SDN Hardware Controller Appliance on LAN at `192.168.100.2` managing 14 physical devices (9 EAP Access Points, 4 JetStream Switches, 1 Multi-WAN Gateway, and 70+ client devices).
+- **Application Platform:** `noc_dash` full-stack Next.js 16 / React 19 web application & 5-Tool MCP stdio server bridge.
 - **Production Runtime:** Containerized in **Podman** (rootless container runtime) communicating over the network with the physical hardware controller.
 
 ```mermaid
@@ -21,7 +21,7 @@ sequenceDiagram
     participant Omada as Physical Omada Controller (192.168.100.2)
 
     Note over UI,Omada: Phase 1: Authentication & Discovery
-    API->>Client: getNetworkStatus() / getActiveClients()
+    API->>Client: getNetworkStatus() / getActiveClients() / auditNetworkHealth()
     Client->>Omada: GET https://192.168.100.2/api/info
     Omada-->>Client: { omadacId: "d7eb8b20b1eb..." }
     Client->>Omada: POST https://192.168.100.2/{omadacId}/api/v2/login
@@ -30,9 +30,9 @@ sequenceDiagram
     Note over UI,Omada: Phase 2: Dynamic Site Resolution & Telemetry
     Client->>Omada: GET /{omadacId}/api/v2/sites?currentPage=1&currentPageSize=100
     Omada-->>Client: Site list (Resolves "Default" -> "The Farm" / "68c1b0160d87...")
-    Client->>Omada: GET /{omadacId}/api/v2/sites/{siteId}/clients?currentPage=1&currentPageSize=1000&filters.active=true
-    Omada-->>Client: 70+ Active client devices telemetry payload
-    Client-->>API: Structured NetworkStatusSummary / ClientDevice[]
+    Client->>Omada: GET /{omadacId}/api/v2/sites/{siteId}/devices + /clients?filters.active=true
+    Omada-->>Client: 14 Infrastructure devices + 70+ Active client devices payload
+    Client-->>API: Structured NetworkStatusSummary / DeviceItem[] / ClientDevice[]
     API-->>UI: Real-time telemetry JSON / MCP formatted markdown
 ```
 
@@ -45,9 +45,10 @@ sequenceDiagram
    - Interactive client telemetry table with selectable auto-polling intervals (5s Live, 10s, 30s, or Paused) and manual on-demand refresh.
    - Real-time client filtering (Medium: All / Wi-Fi / Ethernet, and search query across device name, hostname, IP, MAC, SSID) and multi-attribute sorting (Instantaneous Throughput, Cumulative Data, Uptime).
 
-2. **Model Context Protocol (MCP) Server Bridge & AI Agent Runner:**
-   - Implements `@modelcontextprotocol/sdk` to expose structured tools (`get_network_status`, `get_active_clients`) to LLM clients (e.g., Claude Desktop, MCP Inspector, custom agents).
-   - Dedicated question-answering CLI (`npm run mcp:agent`) demonstrating real JSON-RPC tool selection and telemetry question-answering over stdio.
+2. **5-Tool Model Context Protocol (MCP) Server Bridge & AI Copilot:**
+   - Implements `@modelcontextprotocol/sdk` to expose 5 specialized tools (`get_network_status`, `get_active_clients`, `get_network_devices`, `get_client_detail`, `audit_network_health`) to LLM clients (e.g., Claude Desktop, MCP Inspector, custom agents).
+   - Interactive terminal AI Copilot (`npm run mcp:copilot`) for natural-language network diagnosis and optimization advice.
+   - Automated question-answering agent runner (`npm run mcp:agent`) demonstrating multi-scenario JSON-RPC tool selection.
 
 3. **Resilient Omada v5 API Engine:**
    - Multi-step Omada v5.15 authentication (`omadacId` auto-discovery via `/api/info`, followed by `POST /api/v2/login` for CSRF token and `TPOMADA_SESSIONID` session cookie).
@@ -56,9 +57,10 @@ sequenceDiagram
 
 4. **Container Orchestration with Podman:**
    - Multi-stage rootless `Containerfile` leveraging Next.js standalone output for minimal image size, zero host dependencies, and strict Linux container security in production.
+   - Declarative Kubernetes deployment manifests and Kustomize declarations (`k8s/`).
 
-5. **Automated Testing Suite (> 99.5% Coverage):**
-   - 66 comprehensive unit and integration tests powered by **Vitest**, **V8 coverage**, **@testing-library/react**, and **JSDOM**.
+5. **Automated Testing Suite (> 98% Coverage):**
+   - 78 comprehensive unit and integration tests powered by **Vitest**, **V8 coverage**, **@testing-library/react**, and **JSDOM**.
    - Dedicated controller diagnostic CLI tool (`npm run test:controller`) verifying live physical hardware controller connectivity.
 
 ---
@@ -114,36 +116,48 @@ npm run test:controller
 
 ---
 
-## 🤖 Model Context Protocol (MCP) Integration & Testing
+## 🤖 Model Context Protocol (MCP) Integration & AI Tools
 
 The MCP server connects Large Language Models (e.g. Claude Desktop, AI agents) directly to live Omada network telemetry.
 
-### Exposed MCP Tools
+### Exposed MCP Tools (5 Core Tools)
 
 1. **`get_network_status`**
    - Retrieves real-time controller connectivity, connected client counts (wired vs. wireless breakdown), aggregate throughput, and cumulative data volume.
 2. **`get_active_clients`**
    - Retrieves connected client devices with IP, MAC, connection medium (Wi-Fi SSID, signal dBm, switch port), real-time bandwidth rate, cumulative data volume, and uptime.
-   - **Parameters:**
-     - `connection_type`: `"all"` | `"wireless"` | `"wired"` (default: `"all"`)
-     - `sort_by`: `"activity"` | `"traffic"` | `"uptime"` (default: `"activity"`)
-     - `limit`: number 1–100 (default: `10`)
+   - **Parameters:** `connection_type` (`all` | `wireless` | `wired`), `sort_by` (`activity` | `traffic` | `uptime`), `limit` (1–100).
+3. **`get_network_devices`**
+   - Retrieves physical infrastructure hardware (9 Access Points, 4 Switches, 1 Gateway) with CPU utilization %, Memory %, client count per AP, and connection status.
+   - **Parameters:** `device_type` (`all` | `ap` | `switch` | `gateway`).
+4. **`get_client_detail`**
+   - Performs a deep-dive RF and link-layer diagnostic on a specific client by IP, MAC, or hostname (RSSI dBm, signal %, RF channel, negotiated PHY rates, connected AP/port).
+   - **Parameters:** `query` (string).
+5. **`audit_network_health`**
+   - Automated diagnostic auditor evaluating controller status, isolated hardware, AP load balancing, and RF signal degradation, returning an overall **Health Score (0–100)**, critical alerts, performance warnings, and actionable optimization advice.
 
-### 1. Interactive AI Agent Runner (`npm run mcp:agent`)
-Runs an automated question-answering agent that connects to the MCP server over stdio, executes tool discovery, reasons through natural language questions, and queries live hardware telemetry:
+### 1. Interactive AI Copilot REPL (`npm run mcp:copilot`)
+Launch a real-time conversational terminal copilot for natural-language network queries and optimization suggestions:
+
+```bash
+npm run mcp:copilot
+```
+
+### 2. Automated AI Agent Demonstration (`npm run mcp:agent`)
+Runs automated multi-scenario simulations showing model reasoning, JSON-RPC tool calls, and live hardware responses:
 
 ```bash
 npm run mcp:agent
 ```
 
-### 2. Official MCP Visual Inspector (`npm run mcp:inspect`)
+### 3. Official MCP Visual Inspector (`npm run mcp:inspect`)
 Launches the official Anthropic MCP Web Inspector UI where you can visually inspect schemas and execute live tool calls:
 
 ```bash
 npm run mcp:inspect
 ```
 
-### 3. Claude Desktop Native Integration
+### 4. Claude Desktop Native Integration
 Add the server entry to your `claude_desktop_config.json`:
 
 ```json
@@ -165,9 +179,10 @@ Add the server entry to your `claude_desktop_config.json`:
 ```
 
 Now you can ask Claude Desktop directly:
+- *"Perform a network health audit and suggest tuning recommendations"*
+- *"List all access points and their connected client distributions"*
+- *"Why is the Master Bedroom TV or Ian's iPhone slow? Give me RF metrics"*
 - *"Which devices are consuming the most bandwidth right now?"*
-- *"Show me all wireless clients connected to the network."*
-- *"Is the Omada controller online and what is the aggregate traffic?"*
 
 ---
 
@@ -217,6 +232,9 @@ npm run test:coverage
 # Run live physical controller connectivity diagnostics
 npm run test:controller
 
+# Run MCP AI Copilot REPL
+npm run mcp:copilot
+
 # Run MCP AI Agent Question-Answering demo
 npm run mcp:agent
 
@@ -228,21 +246,21 @@ npm run build
 
 ```text
 =============================== Coverage summary ===============================
-Statements   : 99.50% ( 333/337 )
-Lines        : 99.50% ( 311/314 )
-Functions    : 100.0% ( 50/50 )
-Branches     : 86.66% ( 361/411 )
+Statements   : 98.38% ( 426/433 )
+Lines        : 98.38% ( 396/402 )
+Functions    : 100.0% ( 61/61 )
+Branches     : 79.90% ( 396/495 )
 ================================================================================
 Test Suites  : 8 passed (8 total)
-Tests        : 66 passed (66 total)
+Tests        : 78 passed (78 total)
 ```
 
 | Module | Statements | Lines | Functions | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| [`lib/omada/client.ts`](file:///Users/jameslaster/Code/posh/noc_dash/lib/omada/client.ts) | **98.72%** | **98.51%** | **100%** | Physical Omada controller auth, token caching, site resolution |
+| [`lib/omada/client.ts`](file:///Users/jameslaster/Code/posh/noc_dash/lib/omada/client.ts) | **95.11%** | **95.11%** | **100%** | Physical Omada controller auth, site resolution, devices, RF audit |
 | [`lib/omada/formatters.ts`](file:///Users/jameslaster/Code/posh/noc_dash/lib/omada/formatters.ts) | **100%** | **100%** | **100%** | Byte, throughput rate, uptime, and MAC formatting |
 | [`app/api/telemetry/route.ts`](file:///Users/jameslaster/Code/posh/noc_dash/app/api/telemetry/route.ts) | **100%** | **100%** | **100%** | Telemetry REST API route with sorting and filtering |
-| [`mcp/server.ts`](file:///Users/jameslaster/Code/posh/noc_dash/mcp/server.ts) | **100%** | **100%** | **100%** | MCP Stdio server bridge & tool handlers |
+| [`mcp/server.ts`](file:///Users/jameslaster/Code/posh/noc_dash/mcp/server.ts) | **99.69%** | **99.69%** | **100%** | 5-Tool MCP Stdio server bridge & tool handlers |
 | [`app/components/Dashboard.tsx`](file:///Users/jameslaster/Code/posh/noc_dash/app/components/Dashboard.tsx) | **99.77%** | **99.77%** | **100%** | Interactive telemetry dashboard client component |
 | [`app/page.tsx`](file:///Users/jameslaster/Code/posh/noc_dash/app/page.tsx) | **100%** | **100%** | **100%** | Next.js Server Component SSR entrypoint |
 | [`tests/integration/mcp-client.test.ts`](file:///Users/jameslaster/Code/posh/noc_dash/tests/integration/mcp-client.test.ts) | **100%** | **100%** | **100%** | End-to-end MCP client-server integration test |
@@ -268,10 +286,11 @@ noc_dash/
 │       └── formatters.ts            # Formatting utilities (bytes, rates, uptime, MAC)
 ├── mcp/
 │   ├── cli.ts                       # CLI executable for Model Context Protocol server
-│   └── server.ts                    # Model Context Protocol stdio server bridge
+│   └── server.ts                    # 5-Tool Model Context Protocol stdio server bridge
 ├── scripts/
 │   ├── build-container.sh           # Automated container build script
 │   ├── run-container.sh             # Automated container run script
+│   ├── mcp-copilot.ts               # Interactive AI Copilot terminal chat REPL
 │   ├── mcp-agent.ts                 # AI Agent question-answering runner
 │   └── test-controller.ts           # Standalone controller diagnostic test CLI
 ├── k8s/
@@ -312,7 +331,7 @@ noc_dash/
 | Project Component | GlobalNOC Job Requirement / Preference | Justification |
 | :--- | :--- | :--- |
 | **Next.js 16 + React 19 + Tailwind** | *"Provides advanced research/analysis... UX/UI design/philosophy"* & *"Visualizations to help end users understand their data"* | Delivers a high-density, accessible NOC dashboard with real-time polling, dark-mode ergonomics, and sub-second filtering. |
-| **Model Context Protocol (MCP)** | *"Experience with programmatic use of LLMs, AI, and related systems. Integration of data sources into LLMs via MCP or similar protocols."* | Bridges physical enterprise network telemetry with LLMs using the open Model Context Protocol standard, complete with interactive AI agent runner (`npm run mcp:agent`). |
+| **5-Tool Model Context Protocol (MCP)** | *"Experience with programmatic use of LLMs, AI, and related systems. Integration of data sources into LLMs via MCP or similar protocols."* | Bridges physical enterprise network telemetry with LLMs using 5 specialized MCP tools, automated audit scoring, and an interactive AI copilot CLI (`npm run mcp:copilot`). |
 | **Podman Containerization & K8s** | *"Experience with application containerization platforms such as docker and podman"* & *"kubernetes application deployment methods such as helm or kustomize."* | Rootless multi-stage container deployment with Compose and Kustomize declarations ready for cloud-native orchestration. |
 | **TypeScript Omada Engine** | *"Design, development, testing... tuning of software systems"* & *"Network measurement, monitoring, visualization."* | Reverse-engineered physical hardware controller API handshakes (two-step auth, CSRF tokens, session cookies, dynamic site resolution for `"The Farm"`), strict type modeling, and robust error recovery. |
-| **Testing Suite (> 99.5% Coverage)** | *"Testing, configuration, and maintenance of reliable software"* | Automated testing with 66 tests across 8 test suites, build gates, and hardware diagnostic scripts testing live appliances on the LAN. |
+| **Testing Suite (> 98% Coverage)** | *"Testing, configuration, and maintenance of reliable software"* | Automated testing with 78 tests across 8 test suites, build gates, and hardware diagnostic scripts testing live appliances on the LAN. |

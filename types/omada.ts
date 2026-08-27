@@ -41,6 +41,11 @@ export interface OmadaClientDevice {
   signalLevel?: number;
   signalRank?: number;
   rssi?: number;
+  snr?: number;
+  wifiMode?: number;
+  channel?: number;
+  rxRate?: number;
+  txRate?: number;
   activity?: number; // Instantaneous rate in Bytes/sec
   trafficDown?: number; // Cumulative downloaded bytes
   trafficUp?: number; // Cumulative uploaded bytes
@@ -49,6 +54,7 @@ export interface OmadaClientDevice {
   authStatus?: number;
   blocked?: boolean;
   guest?: boolean;
+  deviceType?: string;
 }
 
 export interface OmadaClientsPageResult {
@@ -56,6 +62,58 @@ export interface OmadaClientsPageResult {
   currentPage: number;
   currentSize: number;
   data: OmadaClientDevice[];
+}
+
+export interface OmadaDeviceItem {
+  mac: string;
+  name: string;
+  type: 'ap' | 'switch' | 'gateway' | string;
+  model: string;
+  showModel?: string;
+  ip: string;
+  status: number; // e.g. 14 = connected, 15 = isolated
+  statusStr?: string;
+  clientNum?: number;
+  cpuUtil?: number;
+  memUtil?: number;
+  uptime?: number;
+  firmwareVersion?: string;
+  needUpgrade?: boolean;
+  channel?: number;
+  poeRemain?: number;
+}
+
+export interface WirelessHealthSummary {
+  totalWirelessClients: number;
+  weakSignalCount: number; // Clients with RSSI < -70 dBm
+  criticalSignalCount: number; // Clients with RSSI < -80 dBm
+  weakSignalClients: Array<{
+    name: string;
+    ip: string;
+    mac: string;
+    rssi?: number;
+    ssid?: string;
+    apName?: string;
+    wifiMode?: number;
+  }>;
+  apLoadDistribution: Array<{
+    apName: string;
+    clientCount: number;
+    model: string;
+    cpuUtil?: number;
+    memUtil?: number;
+  }>;
+}
+
+export interface NetworkAuditReport {
+  timestamp: string;
+  healthScore: number; // 0 - 100
+  controllerStatus: string;
+  totalDevices: number;
+  totalClients: number;
+  alerts: string[]; // Critical issues (e.g. offline hardware)
+  warnings: string[]; // Performance risks (e.g. AP imbalance, poor signal)
+  recommendations: string[]; // Actionable optimization tips for network engineers/AI
 }
 
 export interface NetworkStatusSummary {
@@ -77,4 +135,5 @@ export interface TelemetryResponse {
   status: NetworkStatusSummary;
   topClients: OmadaClientDevice[];
   allClients?: OmadaClientDevice[];
+  devices?: OmadaDeviceItem[];
 }

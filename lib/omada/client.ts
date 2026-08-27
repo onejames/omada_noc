@@ -5,6 +5,9 @@ import {
   OmadaSiteItem,
   OmadaClientDevice,
   OmadaClientsPageResult,
+  OmadaDeviceItem,
+  WirelessHealthSummary,
+  NetworkAuditReport,
   NetworkStatusSummary,
 } from '@/types/omada';
 import fs from 'fs';
@@ -301,6 +304,166 @@ export class OmadaClient {
     }
 
     return [];
+  }
+
+  /**
+   * Fetches physical hardware devices (Access Points, Switches, Gateway)
+   */
+  async getDevices(typeFilter: 'all' | 'ap' | 'switch' | 'gateway' = 'all'): Promise<OmadaDeviceItem[]> {
+    const siteId = await this.getResolvedSiteId();
+    const endpoint = `/api/v2/sites/${encodeURIComponent(siteId)}/devices?currentPage=1&currentPageSize=100`;
+
+    const res = await this.authenticatedFetch<OmadaDeviceItem[] | { data: OmadaDeviceItem[] }>(endpoint);
+    if (res.errorCode !== 0) {
+      throw new Error(`Failed to retrieve devices: ${res.msg} (code ${res.errorCode})`);
+    }
+
+    let list: OmadaDeviceItem[] = [];
+    if (Array.isArray(res.result)) {
+      list = res.result;
+    } else if (res.result && Array.isArray((res.result as { data: OmadaDeviceItem[] }).data)) {
+      list = (res.result as { data: OmadaDeviceItem[] }).data;
+    }
+
+    if (typeFilter !== 'all') {
+      return list.filter((d) => d.type?.toLowerCase() === typeFilter.toLowerCase());
+    }
+
+    return list;
+  }
+
+  /**
+   * Deep dive lookup for a single client by IP, MAC, or Hostname
+   */
+  async getClientDetail(query: string): Promise<OmadaClientDevice | null> {
+    const clients = await this.getActiveClients();
+    const cleanQuery = query.trim().toLowerCase();
+
+    return (
+      clients.find(
+        (c) =>
+          c.mac?.toLowerCase() === cleanQuery ||
+          c.mac?.toLowerCase().replace(/[:-]/g, '') === cleanQuery.replace(/[:-]/g, '') ||
+          c.ip?.toLowerCase() === cleanQuery ||
+          c.name?.toLowerCase() === cleanQuery ||
+          c.hostName?.toLowerCase() === cleanQuery
+      ) || null
+    );
+  }
+
+  /**
+   * Computes comprehensive Wi-Fi health insights across APs and wireless clients
+   */
+  async getWirelessHealth(): Promise<WirelessHealthSummary> {
+    const [clients, devices] = await Promise.all([this.getActiveClients(), this.getDevices('ap')]);
+
+    const wirelessClients = clients.filter((c) => c.wireless);
+    const weakSignalClients = wirelessClients
+      .filter((c) => (c.rssi !== undefined && c.rssi < -70) || (c.signalLevel !== undefined && c.signalLevel < 50))
+      .map((c) => ({
+        name: c.name || c.hostName || 'Unnamed Device',
+        ip: c.ip || 'N/A',
+        mac: c.mac,
+        rssi: c.rssi,
+        ssid: c.ssid,
+        apName: c.apName,
+        wifiMode: c.wifiMode,
+      }));
+
+    const criticalSignalCount = wirelessClients.filter(
+      (c) => (c.rssi !== undefined && c.rssi < -80) || (c.signalLevel !== undefined && c.signalLevel < 25)
+    ).length;
+
+    const apLoadDistribution = devices.map((ap) => ({
+      apName: ap.name,
+      clientCount: ap.clientNum || 0,
+      model: ap.model,
+      cpuUtil: ap.cpuUtil,
+      memUtil: ap.memUtil,
+    }));
+
+    return {
+      totalWirelessClients: wirelessClients.length,
+      weakSignalCount: weakSignalClients.length,
+      criticalSignalCount,
+      weakSignalClients,
+      apLoadDistribution,
+    };
+  }
+
+  /**
+   * Generates a holistic network health audit with actionable optimization recommendations
+   */
+  async getNetworkHealthAudit(): Promise<NetworkAuditReport> {
+    const [status, devices, wirelessHealth] = await Promise.all([
+      this.getNetworkStatus(),
+      this.getDevices(),
+      this.getWirelessHealth(),
+    ]);
+
+    const alerts: string[] = [];
+    const warnings: string[] = [];
+    const recommendations: string[] = [];
+
+    let healthScore = 100;
+
+    // 1. Controller & Infrastructure Health
+    if (!status.controllerOnline) {
+      alerts.push('Omada Controller is offline or unreachable.');
+      healthScore -= 50;
+    }
+
+    const offlineDevices = devices.filter((d) => d.status !== 14 && d.status !== 1);
+    if (offlineDevices.length > 0) {
+      alerts.push(`${offlineDevices.length} infrastructure device(s) are isolated or offline: ${offlineDevices.map((d) => d.name).join(', ')}`);
+      healthScore -= offlineDevices.length * 10;
+    }
+
+    // 2. High CPU / Resource Constraints
+    const highCpuDevices = devices.filter((d) => (d.cpuUtil || 0) > 80);
+    if (highCpuDevices.length > 0) {
+      warnings.push(`High CPU load detected on: ${highCpuDevices.map((d) => `${d.name} (${d.cpuUtil}%)`).join(', ')}`);
+      healthScore -= 10;
+    }
+
+    // 3. AP Load Distribution & Imbalance
+    const activeAps = devices.filter((d) => d.type === 'ap');
+    if (activeAps.length > 1) {
+      const maxAp = activeAps.reduce((prev, curr) => ((curr.clientNum || 0) > (prev.clientNum || 0) ? curr : prev), activeAps[0]);
+      if ((maxAp.clientNum || 0) > 25 && status.wirelessClients > 0) {
+        const ratio = Math.round(((maxAp.clientNum || 0) / status.wirelessClients) * 100);
+        if (ratio > 50) {
+          warnings.push(`AP Load Imbalance: "${maxAp.name}" handles ${maxAp.clientNum} of ${status.wirelessClients} wireless clients (${ratio}% of all Wi-Fi traffic).`);
+          recommendations.push(`Enable 802.11k/v Fast Roaming and consider adjusting Minimum RSSI threshold on "${maxAp.name}" to balance load to adjacent APs.`);
+          healthScore -= 10;
+        }
+      }
+    }
+
+    // 4. Wi-Fi RF Signal Quality
+    if (wirelessHealth.criticalSignalCount > 0) {
+      warnings.push(`${wirelessHealth.criticalSignalCount} client(s) have critical Wi-Fi signal (< -80 dBm), causing airtime hogging and packet retransmissions.`);
+      healthScore -= 10;
+    }
+
+    if (wirelessHealth.weakSignalCount > 0 && recommendations.length === 0) {
+      recommendations.push(`Review AP placement or increase transmit power for APs serving weak clients: ${wirelessHealth.weakSignalClients.slice(0, 3).map((c) => c.name).join(', ')}.`);
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('Network topology is balanced and operating within optimal performance thresholds.');
+    }
+
+    return {
+      timestamp: new Date().toISOString(),
+      healthScore: Math.max(0, healthScore),
+      controllerStatus: status.controllerOnline ? 'Online ✅' : 'Offline ❌',
+      totalDevices: devices.length,
+      totalClients: status.totalClients,
+      alerts,
+      warnings,
+      recommendations,
+    };
   }
 
   /**

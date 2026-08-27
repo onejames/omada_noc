@@ -317,7 +317,7 @@ describe('Dashboard Client Component', () => {
     fireEvent.change(pollingSelect, { target: { value: '5' } });
 
     // Advance timers by 5s
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(5000);
     });
 
@@ -327,7 +327,7 @@ describe('Dashboard Client Component', () => {
     fireEvent.change(pollingSelect, { target: { value: '0' } });
     global.fetch = vi.fn();
 
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(10000);
     });
 

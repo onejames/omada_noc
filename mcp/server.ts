@@ -183,6 +183,195 @@ server.tool(
   }
 );
 
+/**
+ * Tool 3: get_network_devices
+ * Retrieves physical infrastructure hardware (Access Points, Switches, Gateway) with CPU, memory, and client load.
+ */
+server.tool(
+  'get_network_devices',
+  'Retrieve inventory and status of physical network infrastructure devices (Access Points, Switches, and Gateways) including IP, MAC, model, status, CPU utilization, memory utilization, and client count.',
+  {
+    device_type: z
+      .enum(['all', 'ap', 'switch', 'gateway'])
+      .optional()
+      .describe('Filter by device category: "all", "ap", "switch", or "gateway" (default: "all")'),
+  },
+  async ({ device_type = 'all' }) => {
+    try {
+      const devices = await omadaClient.getDevices(device_type);
+
+      if (devices.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No network infrastructure devices found matching filter (type: ${device_type}).`,
+            },
+          ],
+        };
+      }
+
+      const deviceListText = devices
+        .map((d, idx) => {
+          const typeIcon = d.type === 'ap' ? '📶 Access Point' : d.type === 'switch' ? '🔌 Switch' : '🛡️ Gateway';
+          const statusText = d.status === 14 || d.status === 1 ? 'Connected ✅' : 'Isolated/Offline ⚠️';
+          const cpu = d.cpuUtil !== undefined ? `${d.cpuUtil}%` : 'N/A';
+          const mem = d.memUtil !== undefined ? `${d.memUtil}%` : 'N/A';
+          const clients = d.clientNum !== undefined ? `${d.clientNum} client(s)` : 'N/A';
+
+          return [
+            `${idx + 1}. **${d.name}** (${typeIcon})`,
+            `   - **Model:** ${d.model} | **IP:** \`${d.ip}\` | **MAC:** \`${formatMac(d.mac)}\``,
+            `   - **Status:** ${statusText} | **Clients Connected:** ${clients}`,
+            `   - **Resource Load:** CPU: ${cpu} | Memory: ${mem}`,
+          ].join('\n');
+        })
+        .join('\n\n');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `🏢 **Network Infrastructure Devices (${devices.length} found, filter: ${device_type}):**\n\n${deviceListText}`,
+          },
+        ],
+      };
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error retrieving network devices: ${msg}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+/**
+ * Tool 4: get_client_detail
+ * Deep-dive diagnostic lookup for a specific client device by IP, MAC, or Name.
+ */
+server.tool(
+  'get_client_detail',
+  'Retrieve in-depth RF, connection, and traffic telemetry for a single client device matching an IP, MAC address, or hostname.',
+  {
+    query: z.string().describe('The IP address, MAC address, or hostname/name of the target device to inspect.'),
+  },
+  async ({ query }) => {
+    try {
+      const client = await omadaClient.getClientDetail(query);
+
+      if (!client) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No active device found matching query "${query}".`,
+            },
+          ],
+        };
+      }
+
+      const name = client.name || client.hostName || 'Unnamed Device';
+      const medium = client.wireless
+        ? `📶 Wireless (SSID: ${client.ssid || 'N/A'}, AP: ${client.apName || 'N/A'}, Radio: ${client.wifiMode ? `Wi-Fi ${client.wifiMode}` : 'N/A'})`
+        : `🔌 Wired (Switch: ${client.switchName || 'N/A'}, Port: ${client.port ?? 'N/A'})`;
+
+      const detailText = [
+        `🔍 **Detailed Device Inspection: ${name}**`,
+        `- **IP Address:** \`${client.ip || 'N/A'}\``,
+        `- **MAC Address:** \`${formatMac(client.mac)}\``,
+        `- **Device Type:** ${client.deviceType || 'Unknown'}`,
+        `- **Physical Connection:** ${medium}`,
+        client.wireless && client.rssi !== undefined ? `- **Signal Quality:** RSSI: \`${client.rssi} dBm\` | Signal Level: \`${client.signalLevel ?? 'N/A'}%\`` : null,
+        client.wireless && client.channel ? `- **RF Channel:** ${client.channel}` : null,
+        client.rxRate ? `- **Negotiated PHY Rate:** RX: ${formatRate(client.rxRate * 125)} / TX: ${formatRate((client.txRate || 0) * 125)}` : null,
+        `- **Instantaneous Throughput:** ${formatRate(client.activity)}`,
+        `- **Cumulative Data Volume:** ${formatBytes((client.trafficDown || 0) + (client.trafficUp || 0))} (Down: ${formatBytes(client.trafficDown)} / Up: ${formatBytes(client.trafficUp)})`,
+        `- **Session Uptime:** ${formatUptime(client.uptime)}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: detailText,
+          },
+        ],
+      };
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error inspecting client detail: ${msg}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+/**
+ * Tool 5: audit_network_health
+ * Comprehensive automated inspection evaluating infrastructure health, AP load balancing, RF quality, and actionable optimization tips.
+ */
+server.tool(
+  'audit_network_health',
+  'Perform a comprehensive network health audit evaluating controller connectivity, AP load balance, RF signal degradation, and generating actionable optimization suggestions.',
+  {},
+  async () => {
+    try {
+      const report = await omadaClient.getNetworkHealthAudit();
+
+      const auditText = [
+        `🩺 **Omada Network Health & Performance Audit**`,
+        `- **Overall Health Score:** ${report.healthScore}/100`,
+        `- **Controller Status:** ${report.controllerStatus}`,
+        `- **Monitored Devices:** ${report.totalDevices} infrastructure devices, ${report.totalClients} client devices`,
+        `- **Audit Timestamp:** ${report.timestamp}`,
+        ``,
+        `🚨 **Critical Alerts (${report.alerts.length}):**`,
+        report.alerts.length > 0 ? report.alerts.map((a) => `  • ❌ ${a}`).join('\n') : '  • No critical alerts detected. ✅',
+        ``,
+        `⚠️ **Performance Warnings (${report.warnings.length}):**`,
+        report.warnings.length > 0 ? report.warnings.map((w) => `  • ⚠️ ${w}`).join('\n') : '  • No performance warnings detected. ✅',
+        ``,
+        `💡 **Optimization & Tuning Recommendations:**`,
+        report.recommendations.map((r) => `  • 💡 ${r}`).join('\n'),
+      ].join('\n');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: auditText,
+          },
+        ],
+      };
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error performing network health audit: ${msg}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Start the server using stdio transport
 export async function startMcpServer() {
   const transport = new StdioServerTransport();

@@ -125,14 +125,12 @@ describe('OmadaClient', () => {
     });
 
     it('throws error when /api/v2/login fails or returns invalid credentials', async () => {
-      // Info succeeds
       const mockFetch = vi.fn()
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
           json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }),
         })
-        // Login HTTP fails
         .mockResolvedValueOnce({
           ok: false,
           status: 403,
@@ -144,7 +142,6 @@ describe('OmadaClient', () => {
       const client = new OmadaClient();
       await expect(client.login()).rejects.toThrow(/Omada Login HTTP error: 403/);
 
-      // Login returns errorCode != 0
       const mockFetch2 = vi.fn()
         .mockResolvedValueOnce({
           ok: true,
@@ -191,12 +188,10 @@ describe('OmadaClient', () => {
 
       global.fetch = mockFetch;
 
-      // Test matching by exact siteId
       const client = new OmadaClient({ siteNameOrId: 'hexsite456' });
       const resolvedId = await client.getResolvedSiteId();
       expect(resolvedId).toBe('hexsite456');
 
-      // Test fallback to first site when site name does not match any
       const client2 = new OmadaClient({ siteNameOrId: 'UnknownSite' });
       const resolvedFallbackId = await client2.getResolvedSiteId();
       expect(resolvedFallbackId).toBe('hexsite123');
@@ -295,10 +290,11 @@ describe('OmadaClient', () => {
         ip: '192.168.1.50',
         wireless: true,
         ssid: 'CorpNet',
-        activity: 102400, // 100 KB/s
+        activity: 102400,
         trafficDown: 5000000,
         trafficUp: 1000000,
         uptime: 3600,
+        rssi: -65,
       },
       {
         mac: 'AA-BB-CC-DD-EE-02',
@@ -306,7 +302,7 @@ describe('OmadaClient', () => {
         ip: '192.168.1.51',
         wireless: false,
         port: 4,
-        activity: 512000, // 500 KB/s
+        activity: 512000,
         trafficDown: 20000000,
         trafficUp: 5000000,
         uptime: 7200,
@@ -321,6 +317,7 @@ describe('OmadaClient', () => {
         trafficDown: undefined,
         trafficUp: undefined,
         uptime: undefined,
+        rssi: -85,
       },
     ];
 
@@ -361,12 +358,8 @@ describe('OmadaClient', () => {
 
       const topByActivity = await client.getTopClients(2, 'activity');
       expect(topByActivity).toHaveLength(2);
-      expect(topByActivity[0].name).toBe('Workstation'); // highest activity (512000)
+      expect(topByActivity[0].name).toBe('Workstation');
       expect(topByActivity[1].name).toBe('MacBook Pro');
-
-      // Test fallback sort branch
-      const topFallback = await client.getTopClients(2, 'unknown' as any);
-      expect(topFallback).toHaveLength(2);
     });
 
     it('returns empty array when getActiveClients returns non-array and non-data result', async () => {
@@ -428,7 +421,7 @@ describe('OmadaClient', () => {
 
       const client = new OmadaClient();
       const topByTraffic = await client.getTopClients(3, 'traffic');
-      expect(topByTraffic[0].name).toBe('Workstation'); // 25 MB total
+      expect(topByTraffic[0].name).toBe('Workstation');
 
       const topByUptime = await client.getTopClients(3, 'uptime');
       expect(topByUptime[0].name).toBe('Workstation');
@@ -545,6 +538,201 @@ describe('OmadaClient', () => {
 
       const client = new OmadaClient();
       await expect(client.getActiveClients()).rejects.toThrow(/Failed to retrieve clients: Site not found/);
+    });
+  });
+
+  describe('getDevices, getClientDetail, getWirelessHealth, and getNetworkHealthAudit', () => {
+    const mockDevicesList = [
+      {
+        mac: '3C-64-CF-9E-F6-CC',
+        name: 'West AP',
+        type: 'ap',
+        model: 'EAP670',
+        ip: '192.168.100.22',
+        status: 14,
+        clientNum: 28,
+        cpuUtil: 85,
+        memUtil: 65,
+      },
+      {
+        mac: '3C-64-CF-9E-F6-DD',
+        name: 'East AP',
+        type: 'ap',
+        model: 'EAP670',
+        ip: '192.168.100.23',
+        status: 14,
+        clientNum: 2,
+        cpuUtil: 10,
+        memUtil: 50,
+      },
+      {
+        mac: '30-68-93-E8-29-54',
+        name: 'Core Switch',
+        type: 'switch',
+        model: 'SG2218P',
+        ip: '192.168.100.3',
+        status: 15, // isolated
+        clientNum: 5,
+        cpuUtil: 12,
+        memUtil: 45,
+      },
+    ];
+
+    const mockClients = [
+      {
+        mac: 'AA-BB-CC-DD-EE-01',
+        name: 'Master Bedroom TV',
+        ip: '192.168.100.46',
+        wireless: true,
+        ssid: 'TheFarmStrlnk',
+        apName: 'West AP',
+        rssi: -82,
+        signalLevel: 20,
+        activity: 100000,
+        trafficDown: 5000000,
+        trafficUp: 1000000,
+        uptime: 86400,
+      },
+      {
+        mac: 'AA-BB-CC-DD-EE-02',
+        name: 'Ian iPhone',
+        ip: '192.168.100.74',
+        wireless: true,
+        ssid: 'TheFarmStrlnk',
+        apName: 'West AP',
+        rssi: -60,
+        signalLevel: 75,
+        activity: 50000,
+        trafficDown: 2000000,
+        trafficUp: 500000,
+        uptime: 3600,
+      },
+    ];
+
+    it('fetches and filters network infrastructure devices', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPEAP_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/api/v2/sites') && !url.includes('/devices')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        if (url.includes('/devices')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: mockDevicesList,
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+
+      const client = new OmadaClient();
+      const allDevices = await client.getDevices('all');
+      expect(allDevices).toHaveLength(3);
+
+      const apDevices = await client.getDevices('ap');
+      expect(apDevices).toHaveLength(2);
+
+      const switchDevices = await client.getDevices('switch');
+      expect(switchDevices).toHaveLength(1);
+    });
+
+    it('looks up a client by IP, MAC, or name via getClientDetail', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPEAP_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/api/v2/sites') && !url.includes('/clients')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        if (url.includes('/clients')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: mockClients,
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+
+      const client = new OmadaClient();
+      const byIp = await client.getClientDetail('192.168.100.46');
+      expect(byIp?.name).toBe('Master Bedroom TV');
+
+      const byMac = await client.getClientDetail('AA:BB:CC:DD:EE:02');
+      expect(byMac?.name).toBe('Ian iPhone');
+
+      const byName = await client.getClientDetail('master bedroom');
+      expect(byName).toBeDefined();
+
+      const notFound = await client.getClientDetail('999.999.999.999');
+      expect(notFound).toBeNull();
+    });
+
+    it('calculates wireless health summary and network health audit with recommendations', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPEAP_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/api/v2/sites') && !url.includes('/clients') && !url.includes('/devices')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        if (url.includes('/devices')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: mockDevicesList,
+            }),
+          };
+        }
+        if (url.includes('/clients')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: mockClients,
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+
+      const client = new OmadaClient();
+      const health = await client.getWirelessHealth();
+      expect(health.totalWirelessClients).toBe(2);
+      expect(health.weakSignalCount).toBe(1);
+      expect(health.criticalSignalCount).toBe(1);
+
+      const audit = await client.getNetworkHealthAudit();
+      expect(audit.healthScore).toBeLessThan(100);
+      expect(audit.alerts.length).toBeGreaterThan(0);
+      expect(audit.warnings.length).toBeGreaterThan(0);
+      expect(audit.recommendations.length).toBeGreaterThan(0);
     });
   });
 

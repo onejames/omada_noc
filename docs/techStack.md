@@ -5,8 +5,8 @@ This document maps the chosen technologies directly to the stated requirements a
 ---
 
 ## Architecture Topology
-- **Physical Network Device:** TP-Link Omada SDN Hardware Controller Appliance (`192.168.100.2`), managing real network infrastructure (EAP Access Points, JetStream Switches, Gateway, 70+ client devices).
-- **Application Platform:** Full-stack Next.js 16 + React 19 + TypeScript + Model Context Protocol (MCP).
+- **Physical Network Device:** TP-Link Omada SDN Hardware Controller Appliance (`192.168.100.2`), managing 14 real network infrastructure devices (9 EAP Access Points, 4 JetStream Switches, 1 Multi-WAN Gateway) and 70+ client devices.
+- **Application Platform:** Full-stack Next.js 16 + React 19 + TypeScript + 5-Tool Model Context Protocol (MCP) Server.
 - **Containerization Target:** Podman (Rootless Linux Container Runtime) & Docker (OCI compatible).
 - **Orchestration & Declarative Config:** Compose (`compose.yaml`) and Kubernetes with Kustomize (`k8s/`).
 
@@ -22,12 +22,12 @@ This document maps the chosen technologies directly to the stated requirements a
 
 ---
 
-## 2. Model Context Protocol (MCP)
+## 2. Model Context Protocol (MCP) & AI Copilot Integration
 
-- **Role in Project:** Exposes live network status and active client telemetry to LLMs (Claude Desktop) via standardized tools (`get_network_status`, `get_active_clients`).
+- **Role in Project:** Exposes live network state and active client telemetry to LLMs (Claude Desktop, custom agents) via 5 specialized tools (`get_network_status`, `get_active_clients`, `get_network_devices`, `get_client_detail`, `audit_network_health`).
 - **GlobalNOC Alignment:**
   - *Preferred:* "Experience with programmatic use of LLMs, AI, and related systems. Integration of data sources into LLMs via MCP or similar protocols."
-- **Justification:** Directly fulfills a highly specific and advanced preferred qualification. Demonstrates the ability to bridge hardware-level network telemetry with modern agentic AI workflows.
+- **Justification:** Directly fulfills a highly specific and advanced preferred qualification. Demonstrates the ability to bridge hardware-level network telemetry with modern agentic AI workflows, including automated diagnostic auditing and interactive terminal copilot querying.
 
 ---
 
@@ -55,13 +55,13 @@ This document maps the chosen technologies directly to the stated requirements a
 - **GlobalNOC Alignment:**
   - *Requirement:* "Provides advanced design, development, testing, and configuration of software systems... tuning of new and existing software."
   - *Requirement:* "Network measurement, monitoring, visualization."
-- **Justification:** Demonstrates senior engineering craftsmanship: reverse-engineering Omada v5.15 API handshakes (two-step auth, CSRF tokens, session cookies, dynamic site resolution for `"The Farm"`), strict TypeScript data modeling, and robust automated test suites with > 99% coverage.
+- **Justification:** Demonstrates senior engineering craftsmanship: reverse-engineering Omada v5.15 API handshakes (two-step auth, CSRF tokens, session cookies, dynamic site resolution for `"The Farm"`), strict TypeScript data modeling, and robust automated test suites with > 98% coverage.
 
 ---
 
 ## 6. Testing & Quality Assurance Suite (Vitest & V8)
 
-- **Role in Project:** Comprehensive automated testing enforcing strict code coverage thresholds (**> 99% coverage**, 63 tests).
+- **Role in Project:** Comprehensive automated testing enforcing strict code coverage thresholds (**> 98% coverage**, 78 tests across 8 test suites).
 - **GlobalNOC Alignment:**
   - *Requirement:* "Makes recommendations to improve, as well as implements, testing, quality assurance, and documentation protocols and procedures for websites and web applications."
   - *Requirement:* "Demonstrates a high commitment to quality."

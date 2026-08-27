@@ -27,29 +27,35 @@ if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
 
 interface QuestionScenario {
   question: string;
-  expectedTool: 'get_network_status' | 'get_active_clients';
+  expectedTool: 'get_network_status' | 'get_active_clients' | 'get_network_devices' | 'get_client_detail' | 'audit_network_health';
   args: Record<string, unknown>;
   reasoning: string;
 }
 
 const DEMO_SCENARIOS: QuestionScenario[] = [
   {
-    question: "How is the network performing right now and how many devices are connected?",
-    expectedTool: "get_network_status",
+    question: "Perform a health audit of the network and suggest performance improvements.",
+    expectedTool: "audit_network_health",
     args: {},
-    reasoning: "The user is asking for overall network health, total device count, and aggregated throughput metrics. I will invoke the `get_network_status` MCP tool.",
+    reasoning: "The user is asking for a comprehensive diagnostic assessment of the network, including health scoring, potential issues, and actionable optimization advice. I will invoke `audit_network_health`.",
+  },
+  {
+    question: "List all Access Points on the network and their current client loads.",
+    expectedTool: "get_network_devices",
+    args: { device_type: "ap" },
+    reasoning: "The user is requesting physical AP infrastructure devices with client distribution. I will invoke `get_network_devices` with `device_type: 'ap'`.",
+  },
+  {
+    question: "Why is the Master Bedroom TV or Ian's iPhone experiencing connectivity issues? Give me full RF metrics.",
+    expectedTool: "get_client_detail",
+    args: { query: "Master Bedroom TV" },
+    reasoning: "The user requests an in-depth RF and link-layer diagnostic on a specific client device. I will invoke `get_client_detail` with `query: 'Master Bedroom TV'`.",
   },
   {
     question: "Which wireless clients are consuming the most bandwidth at this exact moment?",
     expectedTool: "get_active_clients",
-    args: { connection_type: "wireless", sort_by: "activity", limit: 5 },
-    reasoning: "The user specifically requests wireless devices sorted by instantaneous throughput (activity). I will invoke `get_active_clients` with `connection_type: 'wireless'`, `sort_by: 'activity'`, and `limit: 5`.",
-  },
-  {
-    question: "Which wired infrastructure and devices have the longest connection uptime?",
-    expectedTool: "get_active_clients",
-    args: { connection_type: "wired", sort_by: "uptime", limit: 5 },
-    reasoning: "The user is inquiring about wired devices sorted by session uptime. I will invoke `get_active_clients` with `connection_type: 'wired'`, `sort_by: 'uptime'`, and `limit: 5`.",
+    args: { connection_type: "wireless", sort_by: "activity", limit: 3 },
+    reasoning: "The user specifically requests wireless devices sorted by instantaneous throughput (activity). I will invoke `get_active_clients` with `connection_type: 'wireless'`, `sort_by: 'activity'`, and `limit: 3`.",
   },
 ];
 
@@ -91,7 +97,7 @@ async function runMcpAgent() {
     });
     console.log('');
 
-    console.log('🧠 Step 3: Executing Agent Question-Answering Scenarios...\n');
+    console.log('🧠 Step 3: Executing AI Agent Question-Answering Scenarios...\n');
 
     for (let i = 0; i < DEMO_SCENARIOS.length; i++) {
       const scenario = DEMO_SCENARIOS[i];
@@ -129,23 +135,6 @@ async function runMcpAgent() {
     console.log('======================================================');
     console.log('  🎉 All MCP Question-Answering Scenarios Passed!     ');
     console.log('======================================================\n');
-    console.log('💡 How to connect with Claude Desktop:');
-    console.log('   Add this server configuration to your `claude_desktop_config.json`:');
-    console.log(`   {
-     "mcpServers": {
-       "omada-noc": {
-         "command": "npx",
-         "args": ["-y", "tsx", "${cliPath}"],
-         "env": {
-           "OMADA_URL": "192.168.100.2",
-           "OMADA_USER": "${process.env.OMADA_USER || 'admin'}",
-           "OMADA_PASS": "********",
-           "OMADA_SITE": "Default",
-           "OMADA_ALLOW_INSECURE_SSL": "true"
-         }
-       }
-     }
-   }\n`);
 
     await client.close();
     process.exit(0);

@@ -13,7 +13,7 @@ else
 fi
 
 if [ ! -f ".env.local" ]; then
-  echo "❌ Error: .env.local not found. Please copy .env.example to .env.local"
+  echo "❌ Error: .env.local not found. Please copy .env.dist to .env.local and configure your credentials."
   exit 1
 fi
 

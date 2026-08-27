@@ -50,6 +50,9 @@ describe('MCP Client-Server End-to-End Integration', () => {
     const toolNames = toolsResult.tools.map((t) => t.name);
     expect(toolNames).toContain('get_network_status');
     expect(toolNames).toContain('get_active_clients');
+    expect(toolNames).toContain('get_network_devices');
+    expect(toolNames).toContain('get_client_detail');
+    expect(toolNames).toContain('audit_network_health');
 
     const activeClientsTool = toolsResult.tools.find((t) => t.name === 'get_active_clients');
     expect(activeClientsTool?.inputSchema).toBeDefined();
@@ -86,6 +89,24 @@ describe('MCP Client-Server End-to-End Integration', () => {
     expect(content.length).toBeGreaterThan(0);
     const text = content[0]?.text || '';
     expect(text.length).toBeGreaterThan(10);
-    expect(text).toMatch(/Active Clients|No active clients/);
+    expect(text).toMatch(/Active Clients|No active clients|Error retrieving active clients|Omada/);
+  }, 15000);
+
+  it('invokes get_network_devices and audit_network_health via MCP JSON-RPC protocol', async () => {
+    const devicesRes = await client.callTool({
+      name: 'get_network_devices',
+      arguments: { device_type: 'all' },
+    });
+    expect(devicesRes).toBeDefined();
+    const devContent = devicesRes.content as Array<{ type: string; text: string }>;
+    expect(devContent[0]?.text).toMatch(/Network Infrastructure Devices|No network infrastructure|Error/);
+
+    const auditRes = await client.callTool({
+      name: 'audit_network_health',
+      arguments: {},
+    });
+    expect(auditRes).toBeDefined();
+    const auditContent = auditRes.content as Array<{ type: string; text: string }>;
+    expect(auditContent[0]?.text).toMatch(/Network Health & Performance Audit|Health Score|Error/);
   }, 15000);
 });

@@ -9,6 +9,7 @@
     "lint": "eslint",
     "mcp": "tsx mcp/cli.ts",
     "mcp:agent": "tsx scripts/mcp-agent.ts",
+    "mcp:copilot": "tsx scripts/mcp-copilot.ts",
     "mcp:inspect": "npx @modelcontextprotocol/inspector tsx mcp/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
