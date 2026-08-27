@@ -87,7 +87,7 @@ OMADA_ALLOW_INSECURE_SSL=true
 | Variable | Example Value | Description |
 | :--- | :--- | :--- |
 | `OMADA_URL` | `192.168.100.2` | Physical Omada controller IP or URL |
-| `OMADA_USER` | `onejames@gmail.com` | Controller admin username / email |
+| `OMADA_USER` | `your_email@example.com` | Controller admin username / email |
 | `OMADA_PASS` | `********` | Controller admin password |
 | `OMADA_SITE` | `Default` | Target site name (auto-resolves to `"The Farm"`) |
 | `OMADA_ALLOW_INSECURE_SSL` | `true` | Allow self-signed SSL certificates from physical hardware |
@@ -168,7 +168,7 @@ Add the server entry to your `claude_desktop_config.json`:
       "args": ["-y", "tsx", "/path/to/noc_dash/mcp/cli.ts"],
       "env": {
         "OMADA_URL": "192.168.100.2",
-        "OMADA_USER": "onejames@gmail.com",
+        "OMADA_USER": "your_email@example.com",
         "OMADA_PASS": "your_password",
         "OMADA_SITE": "Default",
         "OMADA_ALLOW_INSECURE_SSL": "true"
