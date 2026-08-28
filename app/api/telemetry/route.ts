@@ -81,7 +81,7 @@ export async function GET(request: Request) {
     };
 
     return NextResponse.json(payload, {
-      status: status.controllerOnline ? 200 : 503,
+      status: 200,
       headers: {
         'Cache-Control': 'no-store, max-age=0',
       },

@@ -305,7 +305,13 @@ describe('Dashboard Client Component', () => {
     expect((global.fetch as any).mock.calls.length).toBe(callCountBefore);
   });
 
-  it('renders offline warning banner when initial status is offline', () => {
+  it('renders offline warning banner when initial status is offline and allows dismissal and retry', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockInitialData,
+    });
+
     const offlineData: TelemetryResponse = {
       status: {
         controllerOnline: false,
@@ -327,9 +333,19 @@ describe('Dashboard Client Component', () => {
     render(<Dashboard initialData={offlineData} />);
     expect(screen.getByText(/Controller Offline/i)).toBeInTheDocument();
     expect(screen.getByText(/Host unreachable/i)).toBeInTheDocument();
+
+    // Click retry
+    const retryBtn = screen.getByRole('button', { name: /retry/i });
+    fireEvent.click(retryBtn);
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/telemetry'));
+
+    // Click dismiss button
+    const dismissBtn = screen.getByRole('button', { name: /dismiss connection notice/i });
+    fireEvent.click(dismissBtn);
+    expect(screen.queryByText(/Host unreachable/i)).not.toBeInTheDocument();
   });
 
-  it('opens executive reports modal and admin AI insights drawer when header buttons are clicked', async () => {
+  it('opens executive reports modal, admin AI insights drawer, and docs modal when buttons are clicked', async () => {
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/api/auth/me')) {
         return Promise.resolve({
@@ -352,6 +368,27 @@ describe('Dashboard Client Component', () => {
           json: async () => ({ success: true, history: [] }),
         });
       }
+      if (url.includes('/api/docs')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            total: 1,
+            docs: [
+              {
+                slug: 'prd',
+                filename: 'PRD.md',
+                title: 'Product Requirements Document',
+                category: 'Product & Strategy',
+                excerpt: 'PRD details',
+                content: '# PRD\n\nDetails',
+                size: 1024,
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+          }),
+        });
+      }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
 
@@ -359,22 +396,41 @@ describe('Dashboard Client Component', () => {
 
     // Wait for auth/me to resolve and set role to ADMIN
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /AI Insights/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /AI Insights/i })[0]).toBeInTheDocument();
     });
 
-    // Click Executive Report button
-    const reportBtn = screen.getByRole('button', { name: /Executive Report/i });
-    fireEvent.click(reportBtn);
+    // Click Executive Report button from navigation strip
+    const reportBtns = screen.getAllByRole('button', { name: /Executive Report/i });
+    fireEvent.click(reportBtns[0]);
 
     // Modal should be open
     expect(screen.getByText(/Executive Telemetry & SLA Report/i)).toBeInTheDocument();
 
     // Click AI Insights button
-    const aiBtn = screen.getByRole('button', { name: /AI Insights/i });
-    fireEvent.click(aiBtn);
+    const aiBtns = screen.getAllByRole('button', { name: /AI Insights/i });
+    fireEvent.click(aiBtns[0]);
 
     // Drawer should be open
     expect(screen.getByText(/Iterative AI Insights Engine/i)).toBeInTheDocument();
+
+    // Click Docs button
+    const docsBtns = screen.getAllByRole('button', { name: /Docs/i });
+    fireEvent.click(docsBtns[0]);
+
+    // Docs modal should be open
+    await waitFor(() => {
+      expect(screen.getByText(/System Documentation & Architecture Dossier/i)).toBeInTheDocument();
+    });
+
+    // Test controls under search bar
+    const genReportBtn = screen.getByRole('button', { name: /Generate Executive PDF Report/i });
+    fireEvent.click(genReportBtn);
+
+    const auditBtn = screen.getByRole('button', { name: /AI Continuous Health Audit/i });
+    fireEvent.click(auditBtn);
+
+    const viewDocsBtn = screen.getByRole('button', { name: /View System Specs & Docs/i });
+    fireEvent.click(viewDocsBtn);
 
     // Close buttons
     const closeButtons = screen.getAllByRole('button', { name: '✕' });

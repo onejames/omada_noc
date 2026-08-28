@@ -14,14 +14,21 @@ import fs from 'fs';
 import path from 'path';
 
 // Automatically load .env.local in environments where Next.js or dotenv hasn't already loaded it (e.g. standalone scripts, CLI)
-if (typeof process !== 'undefined' && !process.env.OMADA_URL) {
-  try {
-    const envPath = path.resolve(process.cwd(), '.env.local');
-    if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
-      process.loadEnvFile(envPath);
+if (typeof process !== 'undefined') {
+  if (!process.env.OMADA_URL) {
+    try {
+      const envPath = path.resolve(process.cwd(), '.env.local');
+      if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
+        process.loadEnvFile(envPath);
+      }
+    } catch {
+      // Ignore error if loading env file fails
     }
-  } catch {
-    // Ignore error if loading env file fails
+  }
+
+  // Pre-configure TLS certificate handling for physical hardware / self-signed local controllers
+  if (process.env.OMADA_ALLOW_INSECURE_SSL !== 'false') {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
 }
 
@@ -83,12 +90,48 @@ export class OmadaClient {
   }
 
   /**
+   * Helper to safely parse JSON responses from the Omada controller,
+   * avoiding cryptic "Unexpected token '<'" SyntaxErrors if the server returns HTML.
+   */
+  private async safeParseJson<T>(res: Response, endpointDesc: string): Promise<T> {
+    if (typeof res.text === 'function') {
+      const rawText = await res.text();
+      const trimmed = rawText.trim();
+
+      if (trimmed.startsWith('<') || res.headers?.get?.('content-type')?.includes('text/html')) {
+        const titleMatch = trimmed.match(/<title>([^<]+)<\/title>/i);
+        const title = titleMatch ? ` ("${titleMatch[1].trim()}")` : '';
+        throw new Error(
+          `Controller at ${this.baseUrl} returned HTML${title} instead of JSON API response at ${endpointDesc}. Check host URL and port.`
+        );
+      }
+
+      try {
+        return JSON.parse(rawText) as T;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Invalid JSON received from Omada Controller at ${endpointDesc}: ${msg}`);
+      }
+    }
+
+    if (typeof res.json === 'function') {
+      return (await res.json()) as T;
+    }
+
+    throw new Error(`Response at ${endpointDesc} cannot be parsed as JSON`);
+  }
+
+  /**
    * Performs the Omada v5 authentication handshake:
-   * 1. GET /api/info -> discovers omadacId
+   * 1. GET /api/info -> discovers omadacId (with automatic port detection fallback if port omitted)
    * 2. POST /{omadacId}/api/v2/login -> retrieves CSRF token & session cookie
    */
   async login(force = false): Promise<void> {
-    if (!force && this.token && this.cookie && this.omadacId) {
+    if (force) {
+      this.token = null;
+      this.cookie = null;
+      this.loginPromise = null;
+    } else if (this.token && this.cookie && this.omadacId) {
       return;
     }
 
@@ -100,21 +143,65 @@ export class OmadaClient {
     this.loginPromise = (async () => {
       try {
         // Step 1: Discover Controller ID
-        const infoRes = await fetch(`${this.baseUrl}/api/info`, {
-          method: 'GET',
-          headers: this.getHeaders(),
-          cache: 'no-store',
-        });
+        let infoRes: Response;
+        let successfulBaseUrl = this.baseUrl;
+        let infoData: OmadaApiResponse<OmadaInfoResult> | null = null;
 
-        if (!infoRes.ok) {
-          throw new Error(`Failed to reach Omada Controller info endpoint at ${this.baseUrl}/api/info (${infoRes.status} ${infoRes.statusText})`);
+        try {
+          infoRes = await fetch(`${this.baseUrl}/api/info`, {
+            method: 'GET',
+            headers: this.getHeaders(),
+            cache: 'no-store',
+          });
+
+          if (!infoRes.ok) {
+            throw new Error(`Failed to reach Omada Controller info endpoint at ${this.baseUrl}/api/info (${infoRes.status} ${infoRes.statusText})`);
+          }
+
+          infoData = await this.safeParseJson<OmadaApiResponse<OmadaInfoResult>>(
+            infoRes,
+            `${this.baseUrl}/api/info`
+          );
+        } catch (initialErr: unknown) {
+          const hasExplicitPort = /:\d+$/.test(this.baseUrl);
+          if (!hasExplicitPort) {
+            // Try common alternative controller ports (:8043, :443)
+            const fallbackPorts = ['8043', '443'];
+            for (const port of fallbackPorts) {
+              const candidateUrl = `${this.baseUrl}:${port}`;
+              try {
+                const fbRes = await fetch(`${candidateUrl}/api/info`, {
+                  method: 'GET',
+                  headers: this.getHeaders(),
+                  cache: 'no-store',
+                });
+                if (fbRes?.ok) {
+                  const fbData = await this.safeParseJson<OmadaApiResponse<OmadaInfoResult>>(
+                    fbRes,
+                    `${candidateUrl}/api/info`
+                  );
+                  if (fbData.errorCode === 0 && fbData.result?.omadacId) {
+                    successfulBaseUrl = candidateUrl;
+                    infoData = fbData;
+                    break;
+                  }
+                }
+              } catch {
+                // Continue to next fallback
+              }
+            }
+          }
+
+          if (!infoData) {
+            throw initialErr;
+          }
         }
 
-        const infoData = (await infoRes.json()) as OmadaApiResponse<OmadaInfoResult>;
         if (infoData.errorCode !== 0 || !infoData.result?.omadacId) {
           throw new Error(`Omada Info Error: ${infoData.msg || 'Missing omadacId in response'}`);
         }
 
+        this.baseUrl = successfulBaseUrl;
         this.omadacId = infoData.result.omadacId;
 
         // Step 2: Login to obtain token and session cookie
@@ -133,7 +220,11 @@ export class OmadaClient {
           throw new Error(`Omada Login HTTP error: ${loginRes.status} ${loginRes.statusText}`);
         }
 
-        const loginData = (await loginRes.json()) as OmadaApiResponse<OmadaLoginResult>;
+        const loginData = await this.safeParseJson<OmadaApiResponse<OmadaLoginResult>>(
+          loginRes,
+          loginUrl
+        );
+
         if (loginData.errorCode !== 0 || !loginData.result?.token) {
           throw new Error(`Omada Login Failed: ${loginData.msg || `Error code ${loginData.errorCode}`}`);
         }
@@ -157,7 +248,7 @@ export class OmadaClient {
   }
 
   /**
-   * Authenticated fetch with automatic token expiration recovery (retry on 401 / session timeout)
+   * Authenticated fetch with automatic token expiration recovery (retry on 401 / session timeout / 302 login redirect)
    */
   private async authenticatedFetch<T>(endpoint: string, options: RequestInit = {}): Promise<OmadaApiResponse<T>> {
     await this.login();
@@ -170,31 +261,56 @@ export class OmadaClient {
       cache: 'no-store',
     });
 
-    // Check for HTTP 401 or auth failures
-    if (res.status === 401) {
+    // Check for HTTP 401, 403, 302, or redirect to login
+    const isAuthChallenge = Boolean(
+      res.status === 401 ||
+      res.status === 403 ||
+      res.status === 302 ||
+      res.redirected ||
+      (res.url && res.url.includes('/login'))
+    );
+
+    if (isAuthChallenge) {
       await this.login(true);
-      res = await fetch(url, {
+      const retryUrl = `${this.baseUrl}/${this.omadacId}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+      res = await fetch(retryUrl, {
         ...options,
         headers: this.getHeaders(options.headers as Record<string, string>),
         cache: 'no-store',
       });
     }
 
-    if (!res.ok) {
-      throw new Error(`Omada API request failed: ${res.status} ${res.statusText} at ${endpoint}`);
-    }
-
-    const data = (await res.json()) as OmadaApiResponse<T>;
-
-    // Handle Omada specific session expiration error codes (e.g., -30000 or -30001 or -39000)
-    if (data.errorCode === -30000 || data.errorCode === -30001 || data.errorCode === -39000) {
+    let data: OmadaApiResponse<T>;
+    try {
+      if (!res.ok) {
+        throw new Error(`Omada API request failed: ${res.status} ${res.statusText} at ${endpoint}`);
+      }
+      data = await this.safeParseJson<OmadaApiResponse<T>>(res, url);
+    } catch {
+      // If we got HTML (e.g. redirected to login web page on session timeout), force re-login and retry once!
       await this.login(true);
-      const retryRes = await fetch(url, {
+      const retryUrl = `${this.baseUrl}/${this.omadacId}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+      const retryRes = await fetch(retryUrl, {
         ...options,
         headers: this.getHeaders(options.headers as Record<string, string>),
         cache: 'no-store',
       });
-      return (await retryRes.json()) as OmadaApiResponse<T>;
+      if (!retryRes.ok) {
+        throw new Error(`Omada API request failed: ${retryRes.status} ${retryRes.statusText} at ${endpoint}`);
+      }
+      data = await this.safeParseJson<OmadaApiResponse<T>>(retryRes, retryUrl);
+    }
+
+    // Handle Omada specific session expiration error codes (e.g., -30000 or -30001 or -39000 or -1000)
+    if (data.errorCode === -30000 || data.errorCode === -30001 || data.errorCode === -39000 || data.errorCode === -1000) {
+      await this.login(true);
+      const retryUrl = `${this.baseUrl}/${this.omadacId}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+      const retryRes = await fetch(retryUrl, {
+        ...options,
+        headers: this.getHeaders(options.headers as Record<string, string>),
+        cache: 'no-store',
+      });
+      return await this.safeParseJson<OmadaApiResponse<T>>(retryRes, retryUrl);
     }
 
     return data;
@@ -282,17 +398,33 @@ export class OmadaClient {
     const siteId = await this.getResolvedSiteId();
     const endpoint = `/api/v2/sites/${encodeURIComponent(siteId)}/clients?currentPage=1&currentPageSize=1000&filters.active=true`;
 
-    let res: OmadaApiResponse<OmadaClientsPageResult | OmadaClientDevice[]>;
+    let res: OmadaApiResponse<OmadaClientsPageResult | OmadaClientDevice[]> | null = null;
     try {
       res = await this.authenticatedFetch<OmadaClientsPageResult | OmadaClientDevice[]>(endpoint);
     } catch {
-      // Fallback without filters.active in case of older firmware
-      const fallbackEndpoint = `/api/v2/sites/${encodeURIComponent(siteId)}/clients?currentPage=1&currentPageSize=1000`;
-      res = await this.authenticatedFetch<OmadaClientsPageResult | OmadaClientDevice[]>(fallbackEndpoint);
+      // Fallback 1: Without filters.active
+      try {
+        const fallbackEndpoint = `/api/v2/sites/${encodeURIComponent(siteId)}/clients?currentPage=1&currentPageSize=1000`;
+        res = await this.authenticatedFetch<OmadaClientsPageResult | OmadaClientDevice[]>(fallbackEndpoint);
+      } catch {
+        // Fallback 2: Via insight/clients
+        const insightEndpoint = `/api/v2/sites/${encodeURIComponent(siteId)}/insight/clients?currentPage=1&currentPageSize=1000`;
+        res = await this.authenticatedFetch<OmadaClientsPageResult | OmadaClientDevice[]>(insightEndpoint);
+      }
     }
 
-    if (res.errorCode !== 0) {
-      throw new Error(`Failed to retrieve clients: ${res.msg} (code ${res.errorCode})`);
+    if (!res || res.errorCode !== 0) {
+      // Try insight/clients if primary endpoint returned non-zero errorCode
+      try {
+        const insightEndpoint = `/api/v2/sites/${encodeURIComponent(siteId)}/insight/clients?currentPage=1&currentPageSize=1000`;
+        res = await this.authenticatedFetch<OmadaClientsPageResult | OmadaClientDevice[]>(insightEndpoint);
+      } catch {
+        // Keep original
+      }
+    }
+
+    if (!res || res.errorCode !== 0) {
+      throw new Error(`Failed to retrieve clients: ${res?.msg || 'General error'} (code ${res?.errorCode})`);
     }
 
     if (Array.isArray(res.result)) {
@@ -497,7 +629,10 @@ export class OmadaClient {
         error: null,
       };
     } catch (error: unknown) {
-      const errMessage = error instanceof Error ? error.message : 'Unknown connection error';
+      let errMessage = error instanceof Error ? error.message : 'Unknown connection error';
+      if (errMessage.includes('Unexpected token') || errMessage.includes('<!DOCTYPE') || errMessage.includes('returned HTML')) {
+        errMessage = `Controller at ${this.baseUrl} returned HTML instead of API data. Verify controller address and port.`;
+      }
       return {
         controllerOnline: false,
         omadacId: this.omadacId,

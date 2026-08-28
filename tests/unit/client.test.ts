@@ -159,6 +159,80 @@ describe('OmadaClient', () => {
       const client2 = new OmadaClient();
       await expect(client2.login()).rejects.toThrow(/Omada Login Failed: Bad credentials/);
     });
+
+    it('detects HTML responses in safeParseJson and formats a friendly error with page title', async () => {
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'text/html' },
+        text: async () => '<!DOCTYPE html><html><head><title>Omada Controller Web UI</title></head><body>Login</body></html>',
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient({ baseUrl: 'https://192.168.100.2:8043' });
+      await expect(client.login()).rejects.toThrow(/returned HTML \("Omada Controller Web UI"\) instead of JSON/);
+    });
+
+    it('handles invalid JSON strings and unparseable responses in safeParseJson', async () => {
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => 'Not A Valid JSON Payload',
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient({ baseUrl: 'https://192.168.100.2:8043' });
+      await expect(client.login()).rejects.toThrow(/Invalid JSON received from Omada Controller/);
+
+      // Unparseable response object without text or json
+      const mockFetch2 = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+      });
+
+      global.fetch = mockFetch2;
+      const client2 = new OmadaClient({ baseUrl: 'https://192.168.100.2:8043' });
+      await expect(client2.login()).rejects.toThrow(/cannot be parsed as JSON/);
+    });
+
+    it('automatically discovers and falls back to :8043 if port was omitted in baseUrl', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url === 'https://192.168.100.2/api/info') {
+          // Standard :443 returns HTML
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => 'text/html' },
+            text: async () => '<!DOCTYPE html><html><head><title>Router</title></head></html>',
+          };
+        }
+        if (url === 'https://192.168.100.2:8043/api/info') {
+          // Port 8043 returns valid omadacId
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => 'application/json' },
+            text: async () => JSON.stringify({ errorCode: 0, result: { omadacId: 'discovered-omada-8043' } }),
+          };
+        }
+        if (url.includes('/api/v2/login')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => 'TPOMADA_SESSIONID=sess_8043;' },
+            text: async () => JSON.stringify({ errorCode: 0, result: { token: 'token-8043' } }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient({ baseUrl: '192.168.100.2' });
+      await client.login();
+      expect(client).toBeDefined();
+    });
   });
 
   describe('sites and site resolution', () => {

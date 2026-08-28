@@ -7,6 +7,7 @@ import ProfileWidget from './ProfileWidget';
 import InactivityTracker from './InactivityTracker';
 import { ReportsModal } from './ReportsModal';
 import { AiInsightsDrawer } from './AiInsightsDrawer';
+import { DocsModal } from './DocsModal';
 
 interface DashboardProps {
   initialData: TelemetryResponse;
@@ -24,6 +25,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
   );
   const [isReportsModalOpen, setIsReportsModalOpen] = useState<boolean>(false);
   const [isAiInsightsDrawerOpen, setIsAiInsightsDrawerOpen] = useState<boolean>(false);
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState<boolean>(false);
+  const [isConnectionNoticeDismissed, setIsConnectionNoticeDismissed] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<'ADMIN' | 'USER' | null>(null);
 
   useEffect(() => {
@@ -45,6 +48,9 @@ export default function Dashboard({ initialData }: DashboardProps) {
         const json: TelemetryResponse = await res.json();
         setData(json);
         setLastRefreshedTime(new Date().toLocaleTimeString());
+        if (json.status?.controllerOnline) {
+          setIsConnectionNoticeDismissed(false);
+        }
       } else {
         const errorJson = await res.json().catch(() => ({}));
         setData((prev) => ({
@@ -126,16 +132,16 @@ export default function Dashboard({ initialData }: DashboardProps) {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Top Header */}
-        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800">
-          {/* Branding Title with 40% Opacity Watermark Background Icon */}
-          <div className="relative group select-none">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-800">
+          {/* Branding Title (100% Larger) with 40% Opacity Watermark Background Icon */}
+          <div className="relative group select-none py-2">
             {/* Background Watermark Icon behind Title (40% opacity) */}
             <div
               aria-hidden="true"
-              className="absolute -left-3 -top-2.5 -bottom-2 w-32 opacity-40 pointer-events-none text-cyan-500 select-none overflow-hidden flex items-center justify-start"
+              className="absolute -left-6 -top-6 -bottom-6 w-60 opacity-40 pointer-events-none text-cyan-500 select-none overflow-hidden flex items-center justify-start"
             >
               <svg
-                className="w-20 h-20 transform -rotate-12 -translate-x-2"
+                className="w-44 h-44 transform -rotate-12 -translate-x-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -143,23 +149,23 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth="1.5"
+                  strokeWidth="1.25"
                   d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
                 />
               </svg>
             </div>
 
             <div className="relative z-10 pl-1">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-white flex flex-wrap items-center gap-3 font-mono">
                 Omada NOC Telemetry
-                <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-cyan-900/60 border border-cyan-700/50 text-cyan-300">
+                <span className="text-xs sm:text-sm font-mono uppercase px-3 py-1 rounded-lg bg-cyan-950/90 border border-cyan-700/60 text-cyan-300 shadow-md">
                   MCP Bridge
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Controller Site: <span className="text-slate-200 font-medium">{status.siteName || status.siteId}</span>
+              <p className="text-sm sm:text-base text-slate-400 mt-2 flex flex-wrap items-center gap-2">
+                <span>Controller Site: <strong className="text-slate-200 font-semibold">{status.siteName || status.siteId}</strong></span>
                 {status.omadacId && (
-                  <span className="ml-2 text-slate-500 font-mono text-[11px]">
+                  <span className="text-slate-400 font-mono text-xs bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800">
                     ID: {status.omadacId.slice(0, 8)}...
                   </span>
                 )}
@@ -167,100 +173,106 @@ export default function Dashboard({ initialData }: DashboardProps) {
             </div>
           </div>
 
-          {/* Action Controls & Right-Aligned Profile Widget */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-            {/* Status Pill */}
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium ${
-              status.controllerOnline
-                ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300'
-                : 'bg-rose-950/60 border-rose-800 text-rose-300'
-            }`}>
-              <span className="relative flex h-2 w-2">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  status.controllerOnline ? 'bg-emerald-400' : 'bg-rose-400'
-                }`} />
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                  status.controllerOnline ? 'bg-emerald-500' : 'bg-rose-500'
-                }`} />
-              </span>
-              <span>{status.controllerOnline ? 'Controller Online' : 'Controller Offline'}</span>
-            </div>
-
-            {/* Auto Refresh Select */}
-            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
-              <span className="text-slate-400">Polling:</span>
-              <select
-                aria-label="Polling interval"
-                value={autoRefreshInterval}
-                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-                className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
-              >
-                <option value={5} className="bg-slate-900">5s (Live)</option>
-                <option value={10} className="bg-slate-900">10s</option>
-                <option value={30} className="bg-slate-900">30s</option>
-                <option value={0} className="bg-slate-900">Paused</option>
-              </select>
-            </div>
-
-            {/* Executive Report Button */}
-            <button
-              onClick={() => setIsReportsModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/70 text-slate-200 text-xs font-semibold shadow transition-all cursor-pointer"
-            >
-              <span>📊</span>
-              <span>Executive Report</span>
-            </button>
-
-            {/* AI Insights Button (Admin Only) */}
-            {userRole === 'ADMIN' && (
-              <button
-                onClick={() => setIsAiInsightsDrawerOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-950/80 to-cyan-950/80 hover:from-purple-900/80 hover:to-cyan-900/80 border border-purple-700/60 text-purple-200 text-xs font-semibold shadow transition-all cursor-pointer"
-              >
-                <span>🧠</span>
-                <span>AI Insights</span>
-              </button>
-            )}
-
-            {/* Manual Refresh Button */}
-            <button
-              onClick={fetchTelemetry}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
-              title="Refresh telemetry"
-            >
-              <svg
-                className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
-            </button>
-
-            {/* Compact Static Profile Widget on Right */}
-            <div className="border-l border-slate-800 pl-2.5 ml-0.5">
-              <ProfileWidget align="right" />
-            </div>
+          {/* Right-Aligned 50% Enlarged Profile Widget */}
+          <div className="flex items-center shrink-0">
+            <ProfileWidget align="right" />
           </div>
         </header>
 
-        {/* Connection Error Banner */}
-        {!status.controllerOnline && (
-          <div className="bg-rose-950/40 border border-rose-800/80 rounded-xl p-4 text-rose-200">
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-rose-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <div className="text-sm">
-                <p className="font-semibold text-rose-300">
-                  Omada Controller Connection Notice: {status.error || 'Unable to establish session.'}
-                </p>
-                <p className="text-rose-400/90 text-xs mt-1">
-                  Ensure <code className="bg-rose-900/40 px-1 py-0.5 rounded text-rose-200 font-mono">OMADA_URL</code>, <code className="bg-rose-900/40 px-1 py-0.5 rounded text-rose-200 font-mono">OMADA_USER</code>, and <code className="bg-rose-900/40 px-1 py-0.5 rounded text-rose-200 font-mono">OMADA_PASS</code> are set in <code className="font-mono text-rose-200">.env.local</code> and the Omada container/service is running.
-                </p>
+        {/* Page-Titles & Navigation Action Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Live Telemetry View */}
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-950/70 border border-cyan-700/60 text-cyan-300 text-xs font-bold shadow-sm select-none">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+              </span>
+              <span>📡 Telemetry Dashboard</span>
+            </div>
+
+            {/* 2. Executive Report Button */}
+            <button
+              onClick={() => setIsReportsModalOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+            >
+              <span>📊</span>
+              <span>Executive Report</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                PDF
+              </span>
+            </button>
+
+            {/* 3. AI Insights Button */}
+            {userRole === 'ADMIN' && (
+              <button
+                onClick={() => setIsAiInsightsDrawerOpen(true)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-purple-800/50 hover:border-purple-700 text-purple-300 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+              >
+                <span>🧠</span>
+                <span>AI Insights</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-950/80 text-purple-400 border border-purple-800/60">
+                  CONTINUOUS
+                </span>
+              </button>
+            )}
+
+            {/* 4. Docs Button */}
+            <button
+              onClick={() => setIsDocsModalOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-800/60 text-slate-200 hover:text-cyan-300 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+            >
+              <span>📚</span>
+              <span>Docs</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60">
+                Dynamic
+              </span>
+            </button>
+          </div>
+
+          {/* Last Refreshed Indicator */}
+          <div className="flex items-center gap-3 px-2 text-[11px] text-slate-400 font-mono">
+            <span>Last polled: <strong className="text-slate-300">{lastRefreshedTime}</strong></span>
+          </div>
+        </div>
+
+        {/* Connection Error / Diagnostic Notice Banner */}
+        {!status.controllerOnline && !isConnectionNoticeDismissed && (
+          <div className="bg-slate-900/95 border border-rose-800/80 rounded-xl p-4 text-rose-200 shadow-lg animate-in fade-in duration-200">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-rose-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="text-sm space-y-1">
+                  <p className="font-semibold text-rose-300">
+                    Omada Controller Connection Notice: {status.error || 'Unable to establish session.'}
+                  </p>
+                  <p className="text-rose-400/90 text-xs">
+                    Ensure <code className="bg-rose-900/40 px-1 py-0.5 rounded text-rose-200 font-mono">OMADA_URL</code>, <code className="bg-rose-900/40 px-1 py-0.5 rounded text-rose-200 font-mono">OMADA_USER</code>, and <code className="bg-rose-900/40 px-1 py-0.5 rounded text-rose-200 font-mono">OMADA_PASS</code> are set in <code className="font-mono text-rose-200">.env.local</code> and the Omada container/service is running.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-start shrink-0">
+                <button
+                  onClick={() => {
+                    setIsConnectionNoticeDismissed(false);
+                    fetchTelemetry();
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white text-xs font-semibold transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                >
+                  <span>🔄</span>
+                  <span>Retry</span>
+                </button>
+                <button
+                  onClick={() => setIsConnectionNoticeDismissed(true)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                  aria-label="Dismiss Connection Notice"
+                  title="Dismiss notice"
+                >
+                  ✕
+                </button>
               </div>
             </div>
           </div>
@@ -376,67 +388,181 @@ export default function Dashboard({ initialData }: DashboardProps) {
         </div>
 
         {/* Interactive Controls & Filter Bar */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3.5 shadow-sm">
           
-          {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+          {/* Row 1: Search Box + Filters & Sort */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {/* Search Box */}
+            <div className="relative flex-1 max-w-md">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search by device, IP, MAC, or SSID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Search by device, IP, MAC, or SSID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-            />
+
+            {/* Filters & Sort */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {/* Filter Medium */}
+              <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800">
+                <button
+                  onClick={() => setFilterType('all')}
+                  className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
+                    filterType === 'all' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All ({clients.length})
+                </button>
+                <button
+                  onClick={() => setFilterType('wireless')}
+                  className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
+                    filterType === 'wireless' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Wireless ({status.wirelessClients})
+                </button>
+                <button
+                  onClick={() => setFilterType('wired')}
+                  className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
+                    filterType === 'wired' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Wired ({status.wiredClients})
+                </button>
+              </div>
+
+              {/* Sort Select */}
+              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-300">
+                <span className="text-slate-500">Sort:</span>
+                <select
+                  aria-label="Sort clients by"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'activity' | 'traffic' | 'uptime')}
+                  className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
+                >
+                  <option value="activity" className="bg-slate-900">Activity (Bytes/s)</option>
+                  <option value="traffic" className="bg-slate-900">Total Traffic</option>
+                  <option value="uptime" className="bg-slate-900">Uptime</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          {/* Filters & Sort */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Filter Medium */}
-            <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800">
+          {/* Row 2: Controller Status, Polling Interval & Manual Refresh (Below Search Box, Above Report Controls) */}
+          <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Controller Status Pill */}
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${
+                status.controllerOnline
+                  ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300'
+                  : 'bg-rose-950/60 border-rose-800 text-rose-300'
+              }`}>
+                <span className="relative flex h-2 w-2">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    status.controllerOnline ? 'bg-emerald-400' : 'bg-rose-400'
+                  }`} />
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                    status.controllerOnline ? 'bg-emerald-500' : 'bg-rose-500'
+                  }`} />
+                </span>
+                <span>{status.controllerOnline ? 'Controller Online' : 'Controller Offline'}</span>
+              </div>
+
+              {/* Polling Interval Select */}
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
+                <span className="text-slate-400">Polling:</span>
+                <select
+                  aria-label="Polling interval"
+                  value={autoRefreshInterval}
+                  onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                  className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
+                >
+                  <option value={5} className="bg-slate-900">5s (Live)</option>
+                  <option value={10} className="bg-slate-900">10s</option>
+                  <option value={30} className="bg-slate-900">30s</option>
+                  <option value={0} className="bg-slate-900">Paused</option>
+                </select>
+              </div>
+
+              {/* Manual Refresh Button */}
               <button
-                onClick={() => setFilterType('all')}
-                className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
-                  filterType === 'all' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                }`}
+                onClick={fetchTelemetry}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                title="Refresh telemetry"
               >
-                All ({clients.length})
-              </button>
-              <button
-                onClick={() => setFilterType('wireless')}
-                className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
-                  filterType === 'wireless' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Wireless ({status.wirelessClients})
-              </button>
-              <button
-                onClick={() => setFilterType('wired')}
-                className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
-                  filterType === 'wired' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Wired ({status.wiredClients})
+                <svg
+                  className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
               </button>
             </div>
 
-            {/* Sort Select */}
-            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-300">
-              <span className="text-slate-500">Sort:</span>
-              <select
-                aria-label="Sort clients by"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'activity' | 'traffic' | 'uptime')}
-                className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
+            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400" />
+              <span>Controller Telemetry Stream Active</span>
+            </div>
+          </div>
+
+          {/* Row 3: Report Controls & Quick Telemetry Actions */}
+          <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                Report Controls:
+              </span>
+              
+              {/* Executive Report Button */}
+              <button
+                onClick={() => setIsReportsModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-cyan-800/60 hover:border-cyan-600 text-cyan-300 font-medium transition-all cursor-pointer shadow-sm"
               >
-                <option value="activity" className="bg-slate-900">Activity (Bytes/s)</option>
-                <option value="traffic" className="bg-slate-900">Total Traffic</option>
-                <option value="uptime" className="bg-slate-900">Uptime</option>
-              </select>
+                <span>📊</span>
+                <span>Generate Executive PDF Report</span>
+              </button>
+
+              {/* AI Diagnostic Check (Admin) */}
+              {userRole === 'ADMIN' && (
+                <button
+                  onClick={() => setIsAiInsightsDrawerOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-purple-800/60 hover:border-purple-600 text-purple-300 font-medium transition-all cursor-pointer shadow-sm"
+                >
+                  <span>🧠</span>
+                  <span>AI Continuous Health Audit</span>
+                </button>
+              )}
+
+              {/* Dynamic Docs Modal Trigger */}
+              <button
+                onClick={() => setIsDocsModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-medium transition-all cursor-pointer shadow-sm"
+              >
+                <span>📚</span>
+                <span>View System Specs & Docs</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
+              <span>Showing <strong>{filteredClients.length}</strong> of <strong>{clients.length}</strong> clients</span>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="text-cyan-400 hover:underline cursor-pointer"
+                >
+                  Clear search
+                </button>
+              )}
             </div>
           </div>
 
@@ -609,6 +735,12 @@ export default function Dashboard({ initialData }: DashboardProps) {
       <AiInsightsDrawer
         isOpen={isAiInsightsDrawerOpen}
         onClose={() => setIsAiInsightsDrawerOpen(false)}
+      />
+
+      {/* Dynamic Documentation Modal */}
+      <DocsModal
+        isOpen={isDocsModalOpen}
+        onClose={() => setIsDocsModalOpen(false)}
       />
     </div>
   );

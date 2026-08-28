@@ -152,7 +152,7 @@ describe('API Route: /api/telemetry', () => {
 
     const req = new Request('http://localhost:3000/api/telemetry');
     const res = await GET(req);
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(200);
 
     const json = await res.json();
     expect(json.status.controllerOnline).toBe(false);
