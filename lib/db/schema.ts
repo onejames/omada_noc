@@ -4,7 +4,7 @@ import { initMemoryDb } from './memory';
 
 export const DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || 'admin@omadanoc.com';
 export const DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || 'AdminPass123!';
-export const DEFAULT_ADMIN_USERNAME = 'admin';
+export const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
 
 /**
  * Idempotently initializes the database schema (PostgreSQL or In-Memory fallback)

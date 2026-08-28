@@ -16,8 +16,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('LoginPage and MatrixAuthOverlay Component', () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env = { ...originalEnv };
     mockSearchParams = new URLSearchParams();
     // Mock HTMLCanvasElement getContext
     HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({
@@ -27,10 +30,12 @@ describe('LoginPage and MatrixAuthOverlay Component', () => {
   });
 
   afterEach(() => {
+    process.env = originalEnv;
     vi.useRealTimers();
   });
 
-  it('renders login form, supports onFocus text selection, and populates demo credentials on click', () => {
+  it('renders login form, supports onFocus text selection, and populates demo credentials on click in dev mode', () => {
+    (process.env as any).NODE_ENV = 'development';
     render(<LoginPage />);
 
     expect(screen.getByText('OMADA')).toBeInTheDocument();
@@ -44,10 +49,19 @@ describe('LoginPage and MatrixAuthOverlay Component', () => {
 
     // Click demo fill button
     const demoBtn = screen.getByRole('button', { name: /admin@omadanoc\.com • AdminPass123!/i });
+    expect(demoBtn).toBeInTheDocument();
     fireEvent.click(demoBtn);
 
     expect(emailInput).toHaveValue('admin@omadanoc.com');
     expect(passInput).toHaveValue('AdminPass123!');
+  });
+
+  it('hides dev demo credentials button when NODE_ENV is production', () => {
+    (process.env as any).NODE_ENV = 'production';
+    render(<LoginPage />);
+
+    expect(screen.queryByText(/Development Administrator Credentials:/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /admin@omadanoc\.com • AdminPass123!/i })).not.toBeInTheDocument();
   });
 
   it('displays session timeout notice when reason=inactivity', () => {
@@ -116,6 +130,7 @@ describe('LoginPage and MatrixAuthOverlay Component', () => {
       await vi.advanceTimersByTimeAsync(3500);
     });
 
+    expect(mockPush).not.toHaveBeenCalled();
     expect(screen.queryByTestId('matrix-auth-overlay')).not.toBeInTheDocument();
     expect(screen.getByText('Invalid email or password')).toBeInTheDocument();
   });

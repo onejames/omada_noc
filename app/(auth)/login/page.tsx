@@ -185,9 +185,15 @@ function LoginForm() {
     }
   };
 
+  // Only show development demo credentials helper when in non-production or explicitly enabled
+  const isDevMode = process.env.NODE_ENV !== 'production';
+  const showDevHelper = isDevMode && process.env.NEXT_PUBLIC_SHOW_DEV_CREDENTIALS !== 'false';
+  const devDemoEmail = process.env.NEXT_PUBLIC_DEFAULT_ADMIN_EMAIL || 'admin@omadanoc.com';
+  const devDemoPassword = process.env.NEXT_PUBLIC_DEFAULT_ADMIN_PASSWORD || 'AdminPass123!';
+
   const handleFillDemoAdmin = () => {
-    setIdentifier('admin@omadanoc.com');
-    setPassword('AdminPass123!');
+    setIdentifier(devDemoEmail);
+    setPassword(devDemoPassword);
   };
 
   return (
@@ -282,17 +288,19 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* Quick Demo Fill Helper */}
-          <div className="mt-6 pt-5 border-t border-slate-800/80 text-center">
-            <p className="text-[11px] text-slate-400 mb-2">Default Generic Administrator Credentials:</p>
-            <button
-              type="button"
-              onClick={handleFillDemoAdmin}
-              className="text-xs text-cyan-400 hover:text-cyan-300 font-mono bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-cyan-700/50 transition-all cursor-pointer"
-            >
-              admin@omadanoc.com • AdminPass123!
-            </button>
-          </div>
+          {/* Quick Demo Fill Helper (Visible only in Development) */}
+          {showDevHelper && (
+            <div className="mt-6 pt-5 border-t border-slate-800/80 text-center">
+              <p className="text-[11px] text-slate-400 mb-2">Development Administrator Credentials:</p>
+              <button
+                type="button"
+                onClick={handleFillDemoAdmin}
+                className="text-xs text-cyan-400 hover:text-cyan-300 font-mono bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-cyan-700/50 transition-all cursor-pointer"
+              >
+                {devDemoEmail} • {devDemoPassword}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

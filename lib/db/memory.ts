@@ -25,12 +25,15 @@ export async function initMemoryDb(): Promise<void> {
 
   const adminId = '00000000-0000-0000-0000-000000000001';
   const now = new Date().toISOString();
-  const passwordHash = await hashPassword('AdminPass123!');
+  const adminUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+  const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@omadanoc.com';
+  const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'AdminPass123!';
+  const passwordHash = await hashPassword(adminPassword);
 
   const adminUser: UserRecord = {
     id: adminId,
-    username: 'admin',
-    email: 'admin@omadanoc.com',
+    username: adminUsername,
+    email: adminEmail,
     passwordHash,
     role: 'ADMIN',
     createdAt: now,
