@@ -8,6 +8,9 @@ import InactivityTracker from './InactivityTracker';
 import { ReportsModal } from './ReportsModal';
 import { AiInsightsDrawer } from './AiInsightsDrawer';
 import { DocsModal } from './DocsModal';
+import TopologyView from './TopologyView';
+import VlanWifiView from './VlanWifiView';
+import HardwarePoeView from './HardwarePoeView';
 
 interface DashboardProps {
   initialData: TelemetryResponse;
@@ -20,6 +23,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterType, setFilterType] = useState<'all' | 'wireless' | 'wired'>('all');
   const [sortBy, setSortBy] = useState<'activity' | 'traffic' | 'uptime'>('activity');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'topology' | 'vlan_wifi' | 'hardware_poe'>('telemetry');
+  const [isClientsExpanded, setIsClientsExpanded] = useState<boolean>(false);
   const [lastRefreshedTime, setLastRefreshedTime] = useState<string>(
     new Date(initialData.status.lastUpdated).toLocaleTimeString()
   );
@@ -121,11 +126,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
       return 0;
     });
 
-  const wirelessPercent =
-    status.totalClients > 0 ? Math.round((status.wirelessClients / status.totalClients) * 100) : 0;
-  const wiredPercent =
-    status.totalClients > 0 ? Math.round((status.wiredClients / status.totalClients) * 100) : 0;
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans selection:bg-cyan-500 selection:text-white">
       <InactivityTracker />
@@ -183,15 +183,63 @@ export default function Dashboard({ initialData }: DashboardProps) {
         <div className="flex flex-wrap items-center justify-between gap-3 p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
           <div className="flex flex-wrap items-center gap-2">
             {/* 1. Live Telemetry View */}
-            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-950/70 border border-cyan-700/60 text-cyan-300 text-xs font-bold shadow-sm select-none">
+            <button
+              onClick={() => setActiveTab('telemetry')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm select-none ${
+                activeTab === 'telemetry'
+                  ? 'bg-cyan-950/90 border border-cyan-700/80 text-cyan-300'
+                  : 'bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
               </span>
-              <span>📡 Telemetry Dashboard</span>
-            </div>
+              <span>📡 Telemetry & Clients</span>
+            </button>
 
-            {/* 2. Executive Report Button */}
+            {/* 2. Topology Map Tab */}
+            <button
+              onClick={() => setActiveTab('topology')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm select-none ${
+                activeTab === 'topology'
+                  ? 'bg-purple-950/90 border border-purple-700/80 text-purple-300'
+                  : 'bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              <span>🗺️</span>
+              <span>Topology Map</span>
+            </button>
+
+            {/* 3. VLANs & Wi-Fi Tab */}
+            <button
+              onClick={() => setActiveTab('vlan_wifi')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm select-none ${
+                activeTab === 'vlan_wifi'
+                  ? 'bg-sky-950/90 border border-sky-700/80 text-sky-300'
+                  : 'bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              <span>🛡️</span>
+              <span>VLANs & Wi-Fi</span>
+            </button>
+
+            {/* 4. Hardware & PoE Tab */}
+            <button
+              onClick={() => setActiveTab('hardware_poe')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm select-none ${
+                activeTab === 'hardware_poe'
+                  ? 'bg-emerald-950/90 border border-emerald-700/80 text-emerald-300'
+                  : 'bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              <span>⚡</span>
+              <span>Hardware & PoE</span>
+            </button>
+
+            <span className="w-px h-5 bg-slate-800 mx-1 hidden sm:inline-block" />
+
+            {/* 5. Executive Report Button */}
             <button
               onClick={() => setIsReportsModalOpen(true)}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs font-semibold shadow-sm transition-all cursor-pointer"
@@ -203,7 +251,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </span>
             </button>
 
-            {/* 3. AI Insights Button */}
+            {/* 6. AI Insights Button */}
             {userRole === 'ADMIN' && (
               <button
                 onClick={() => setIsAiInsightsDrawerOpen(true)}
@@ -217,7 +265,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </button>
             )}
 
-            {/* 4. Docs Button */}
+            {/* 7. Docs Button */}
             <button
               onClick={() => setIsDocsModalOpen(true)}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-800/60 text-slate-200 hover:text-cyan-300 text-xs font-semibold shadow-sm transition-all cursor-pointer"
@@ -278,436 +326,506 @@ export default function Dashboard({ initialData }: DashboardProps) {
           </div>
         )}
 
-        {/* 4 Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          {/* Card 1: Total Clients */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Clients</span>
-              <span className="p-2 rounded-md bg-indigo-950/80 text-indigo-400 border border-indigo-800/40">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </span>
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-white">{status.totalClients}</span>
-              <span className="text-xs text-slate-400">devices online</span>
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block w-2 h-2 rounded-full bg-sky-400" />
-              <span>{status.wirelessClients} Wireless</span>
-              <span className="text-slate-600">•</span>
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
-              <span>{status.wiredClients} Wired</span>
-            </div>
-          </div>
-
-          {/* Card 2: Medium Distribution */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Access Medium</span>
-              <span className="p-2 rounded-md bg-sky-950/80 text-sky-400 border border-sky-800/40">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                </svg>
-              </span>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between text-xs font-mono">
-              <span className="text-sky-400 font-semibold">{wirelessPercent}% Wi-Fi</span>
-              <span className="text-emerald-400 font-semibold">{wiredPercent}% Ethernet</span>
-            </div>
-            {/* Split Bar */}
-            <div className="mt-2 w-full h-2 rounded-full bg-slate-800 overflow-hidden flex">
-              <div
-                style={{ width: `${wirelessPercent}%` }}
-                className="h-full bg-sky-500 transition-all duration-500"
-                title={`Wireless: ${status.wirelessClients}`}
-              />
-              <div
-                style={{ width: `${wiredPercent}%` }}
-                className="h-full bg-emerald-500 transition-all duration-500"
-                title={`Wired: ${status.wiredClients}`}
-              />
-            </div>
-            <p className="mt-3 text-xs text-slate-400">
-              {status.wirelessClients} Wi-Fi / {status.wiredClients} Ethernet
-            </p>
-          </div>
-
-          {/* Card 3: Total Instantaneous Rate */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Current Throughput</span>
-              <span className="p-2 rounded-md bg-amber-950/80 text-amber-400 border border-amber-800/40">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </span>
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-amber-400 font-mono">
-                {formatRate(status.totalActivityRate)}
-              </span>
-            </div>
-            <p className="mt-3 text-xs text-slate-400">
-              Live aggregate client bandwidth consumption
-            </p>
-          </div>
-
-          {/* Card 4: Cumulative Transferred Volume */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Data Volume</span>
-              <span className="p-2 rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/40">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                </svg>
-              </span>
-            </div>
-            <div className="mt-3 text-sm font-mono space-y-1">
-              <div className="flex justify-between items-center text-slate-300">
-                <span className="text-xs text-slate-400 flex items-center gap-1">
-                  <span className="text-emerald-400">↓</span> Download:
-                </span>
-                <span className="font-semibold">{formatBytes(status.totalTrafficDown)}</span>
-              </div>
-              <div className="flex justify-between items-center text-slate-300">
-                <span className="text-xs text-slate-400 flex items-center gap-1">
-                  <span className="text-cyan-400">↑</span> Upload:
-                </span>
-                <span className="font-semibold">{formatBytes(status.totalTrafficUp)}</span>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Session cumulative volume
-            </p>
-          </div>
-
-        </div>
-
-        {/* Interactive Controls & Filter Bar */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3.5 shadow-sm">
-          
-          {/* Row 1: Search Box + Filters & Sort */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            {/* Search Box */}
-            <div className="relative flex-1 max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Search by device, IP, MAC, or SSID..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            {/* Filters & Sort */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              {/* Filter Medium */}
-              <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800">
-                <button
-                  onClick={() => setFilterType('all')}
-                  className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
-                    filterType === 'all' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  All ({clients.length})
-                </button>
-                <button
-                  onClick={() => setFilterType('wireless')}
-                  className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
-                    filterType === 'wireless' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Wireless ({status.wirelessClients})
-                </button>
-                <button
-                  onClick={() => setFilterType('wired')}
-                  className={`px-3 py-1 rounded font-medium transition-colors cursor-pointer ${
-                    filterType === 'wired' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Wired ({status.wiredClients})
-                </button>
-              </div>
-
-              {/* Sort Select */}
-              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-300">
-                <span className="text-slate-500">Sort:</span>
-                <select
-                  aria-label="Sort clients by"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'activity' | 'traffic' | 'uptime')}
-                  className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
-                >
-                  <option value="activity" className="bg-slate-900">Activity (Bytes/s)</option>
-                  <option value="traffic" className="bg-slate-900">Total Traffic</option>
-                  <option value="uptime" className="bg-slate-900">Uptime</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2: Controller Status, Polling Interval & Manual Refresh (Below Search Box, Above Report Controls) */}
-          <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Controller Status Pill */}
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${
-                status.controllerOnline
-                  ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300'
-                  : 'bg-rose-950/60 border-rose-800 text-rose-300'
-              }`}>
-                <span className="relative flex h-2 w-2">
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    status.controllerOnline ? 'bg-emerald-400' : 'bg-rose-400'
-                  }`} />
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                    status.controllerOnline ? 'bg-emerald-500' : 'bg-rose-500'
-                  }`} />
-                </span>
-                <span>{status.controllerOnline ? 'Controller Online' : 'Controller Offline'}</span>
-              </div>
-
-              {/* Polling Interval Select */}
-              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
-                <span className="text-slate-400">Polling:</span>
-                <select
-                  aria-label="Polling interval"
-                  value={autoRefreshInterval}
-                  onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-                  className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
-                >
-                  <option value={5} className="bg-slate-900">5s (Live)</option>
-                  <option value={10} className="bg-slate-900">10s</option>
-                  <option value={30} className="bg-slate-900">30s</option>
-                  <option value={0} className="bg-slate-900">Paused</option>
-                </select>
-              </div>
-
-              {/* Manual Refresh Button */}
-              <button
-                onClick={fetchTelemetry}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
-                title="Refresh telemetry"
-              >
-                <svg
-                  className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400" />
-              <span>Controller Telemetry Stream Active</span>
-            </div>
-          </div>
-
-          {/* Row 3: Report Controls & Quick Telemetry Actions */}
-          <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                Report Controls:
-              </span>
+        {/* Tab 1: Telemetry & Clients View */}
+        {activeTab === 'telemetry' && (
+          <div className="space-y-6 animate-in fade-in duration-150">
+            {/* 4 Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
-              {/* Executive Report Button */}
-              <button
-                onClick={() => setIsReportsModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-cyan-800/60 hover:border-cyan-600 text-cyan-300 font-medium transition-all cursor-pointer shadow-sm"
-              >
-                <span>📊</span>
-                <span>Generate Executive PDF Report</span>
-              </button>
+              {/* Card 1: Total Clients */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Clients</span>
+                  <span className="p-2 rounded-md bg-indigo-950/80 text-indigo-400 border border-indigo-800/40">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-white">{status.totalClients}</span>
+                  <span className="text-xs text-slate-400">devices online</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                  <span className="inline-block w-2 h-2 rounded-full bg-sky-400" />
+                  <span>{status.wirelessClients} Wireless</span>
+                  <span className="text-slate-600">•</span>
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>{status.wiredClients} Wired</span>
+                </div>
+              </div>
 
-              {/* AI Diagnostic Check (Admin) */}
-              {userRole === 'ADMIN' && (
-                <button
-                  onClick={() => setIsAiInsightsDrawerOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-purple-800/60 hover:border-purple-600 text-purple-300 font-medium transition-all cursor-pointer shadow-sm"
-                >
-                  <span>🧠</span>
-                  <span>AI Continuous Health Audit</span>
-                </button>
-              )}
+              {/* Card 2: Medium Distribution */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Wireless Ratio</span>
+                  <span className="p-2 rounded-md bg-sky-950/80 text-sky-400 border border-sky-800/40">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-sky-400 font-mono">
+                    {status.totalClients > 0
+                      ? `${Math.round((status.wirelessClients / status.totalClients) * 100)}%`
+                      : '0%'}
+                  </span>
+                  <span className="text-xs text-slate-400">Wi-Fi density</span>
+                </div>
+                <div className="mt-3 w-full bg-slate-950 h-2 rounded-full overflow-hidden flex border border-slate-800">
+                  <div
+                    className="bg-sky-400 h-full transition-all duration-300"
+                    style={{
+                      width: `${status.totalClients > 0 ? (status.wirelessClients / status.totalClients) * 100 : 0}%`,
+                    }}
+                  />
+                  <div
+                    className="bg-emerald-400 h-full transition-all duration-300"
+                    style={{
+                      width: `${status.totalClients > 0 ? (status.wiredClients / status.totalClients) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
 
-              {/* Dynamic Docs Modal Trigger */}
-              <button
-                onClick={() => setIsDocsModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-medium transition-all cursor-pointer shadow-sm"
-              >
-                <span>📚</span>
-                <span>View System Specs & Docs</span>
-              </button>
+              {/* Card 3: Total Activity / Throughput */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Instant Activity</span>
+                  <span className="p-2 rounded-md bg-amber-950/80 text-amber-400 border border-amber-800/40">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-mono">
+                    {formatRate(status.totalActivityRate)}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span>Real-time estate bandwidth</span>
+                </div>
+              </div>
+
+              {/* Card 4: Total Volume (Down / Up) */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Session Traffic</span>
+                  <span className="p-2 rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-800/40">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                  </span>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-bold text-emerald-400 font-mono">
+                    {formatBytes(status.totalTrafficDown + status.totalTrafficUp)}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400 font-mono">
+                  <span className="text-emerald-400">↓ {formatBytes(status.totalTrafficDown)}</span>
+                  <span className="text-slate-600">/</span>
+                  <span className="text-cyan-400">↑ {formatBytes(status.totalTrafficUp)}</span>
+                </div>
+              </div>
+
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
-              <span>Showing <strong>{filteredClients.length}</strong> of <strong>{clients.length}</strong> clients</span>
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="text-cyan-400 hover:underline cursor-pointer"
-                >
-                  Clear search
-                </button>
-              )}
+            {/* Unified Controller Controls & Search Box Container */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+              
+              {/* Row 1: Search & Medium Filters & Sorting */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search by device name, IP, MAC address, SSID, AP name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 transition-all font-sans"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 text-xs font-mono"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Medium Filter Pills */}
+                  <div className="flex items-center p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+                    <button
+                      onClick={() => setFilterType('all')}
+                      className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                        filterType === 'all'
+                          ? 'bg-slate-800 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      All ({clients.length})
+                    </button>
+                    <button
+                      onClick={() => setFilterType('wireless')}
+                      className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                        filterType === 'wireless'
+                          ? 'bg-sky-950 text-sky-300 border border-sky-800/80 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Wi-Fi ({clients.filter((c) => c.wireless).length})
+                    </button>
+                    <button
+                      onClick={() => setFilterType('wired')}
+                      className={`px-3 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                        filterType === 'wired'
+                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/80 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Wired ({clients.filter((c) => !c.wireless).length})
+                    </button>
+                  </div>
+
+                  {/* Sort Selector */}
+                  <div className="flex items-center gap-2 text-xs font-mono">
+                    <span className="text-slate-500 hidden sm:inline">Sort:</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as 'activity' | 'traffic' | 'uptime')}
+                      aria-label="Sort clients by"
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer"
+                    >
+                      <option value="activity">Throughput Rate</option>
+                      <option value="traffic">Total Traffic (Down+Up)</option>
+                      <option value="uptime">Session Uptime</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: Controller Status Bar & Polling Interval */}
+              <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Controller Status Indicator */}
+                  <div
+                    className={`flex items-center gap-2 px-3 py-1 rounded-lg border font-mono ${
+                      status.controllerOnline
+                        ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300'
+                        : 'bg-rose-950/60 border-rose-800/80 text-rose-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-2 h-2 rounded-full ${
+                        status.controllerOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
+                      }`}
+                    />
+                    <span className="font-semibold">
+                      {status.controllerOnline ? 'Controller Online' : 'Controller Offline'}
+                    </span>
+                  </div>
+
+                  {/* Polling Interval Selector */}
+                  <div className="flex items-center gap-2 font-mono text-slate-400">
+                    <span>Polling:</span>
+                    <select
+                      value={autoRefreshInterval}
+                      onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                      aria-label="Polling interval"
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer text-xs"
+                    >
+                      <option value={5}>5s</option>
+                      <option value={10}>10s</option>
+                      <option value={30}>30s</option>
+                      <option value={0}>Paused</option>
+                    </select>
+                  </div>
+
+                  {/* Manual Refresh Button */}
+                  <button
+                    onClick={fetchTelemetry}
+                    disabled={loading}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-200 hover:text-white font-mono transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                  >
+                    <svg
+                      className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  <span>Controller Telemetry Stream Active</span>
+                </div>
+              </div>
+
+              {/* Row 3: Report Controls & Quick Telemetry Actions */}
+              <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    Report Controls:
+                  </span>
+                  
+                  {/* Executive Report Button */}
+                  <button
+                    onClick={() => setIsReportsModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-cyan-800/60 hover:border-cyan-600 text-cyan-300 font-medium transition-all cursor-pointer shadow-sm"
+                  >
+                    <span>📊</span>
+                    <span>Generate Executive PDF Report</span>
+                  </button>
+
+                  {/* AI Diagnostic Check (Admin) */}
+                  {userRole === 'ADMIN' && (
+                    <button
+                      onClick={() => setIsAiInsightsDrawerOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-purple-800/60 hover:border-purple-600 text-purple-300 font-medium transition-all cursor-pointer shadow-sm"
+                    >
+                      <span>🧠</span>
+                      <span>AI Continuous Health Audit</span>
+                    </button>
+                  )}
+
+                  {/* Dynamic Docs Modal Trigger */}
+                  <button
+                    onClick={() => setIsDocsModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white font-medium transition-all cursor-pointer shadow-sm"
+                  >
+                    <span>📚</span>
+                    <span>View System Specs & Docs</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
+                  <span>Showing <strong>{isClientsExpanded ? filteredClients.length : Math.min(5, filteredClients.length)}</strong> of <strong>{clients.length}</strong> clients</span>
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="text-cyan-400 hover:underline cursor-pointer"
+                    >
+                      Clear search
+                    </button>
+                  )}
+                </div>
+              </div>
+
             </div>
-          </div>
 
-        </div>
+            {/* Clients Table */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-900/50">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-sm font-semibold text-slate-200 tracking-wide uppercase">
+                    Connected Client Telemetry
+                  </h2>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 border border-cyan-800 text-cyan-300">
+                    {isClientsExpanded ? 'ALL CLIENTS' : 'TOP 5 ACTIVE'}
+                  </span>
+                </div>
 
-        {/* Clients Table */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-            <h2 className="text-sm font-semibold text-slate-200 tracking-wide uppercase">
-              Connected Client Telemetry
-            </h2>
-            <span className="text-xs text-slate-500 font-mono">
-              Showing {filteredClients.length} of {clients.length}
-            </span>
-          </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 font-mono">
+                    Showing {isClientsExpanded ? filteredClients.length : Math.min(5, filteredClients.length)} of {filteredClients.length}
+                  </span>
+                  {filteredClients.length > 5 && (
+                    <button
+                      onClick={() => setIsClientsExpanded(!isClientsExpanded)}
+                      className="text-xs font-mono font-semibold text-cyan-400 hover:text-cyan-300 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 transition-colors cursor-pointer"
+                    >
+                      {isClientsExpanded ? '▲ Collapse to Top 5' : `▼ Expand All (${filteredClients.length})`}
+                    </button>
+                  )}
+                </div>
+              </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-slate-950/60 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-mono">
-                <tr>
-                  <th className="px-6 py-3.5 font-medium">Device Name / Host</th>
-                  <th className="px-6 py-3.5 font-medium">IP Address</th>
-                  <th className="px-6 py-3.5 font-medium">MAC Address</th>
-                  <th className="px-6 py-3.5 font-medium">Connection / Medium</th>
-                  <th className="px-6 py-3.5 font-medium text-right">Throughput</th>
-                  <th className="px-6 py-3.5 font-medium text-right">Total Traffic (Down / Up)</th>
-                  <th className="px-6 py-3.5 font-medium text-right">Uptime</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
-                {filteredClients.length > 0 ? (
-                  filteredClients.map((client) => {
-                    const totalVolume = (client.trafficDown || 0) + (client.trafficUp || 0);
-                    return (
-                      <tr key={client.mac} className="hover:bg-slate-800/40 transition-colors">
-                        {/* Device Name */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-100">
-                              {client.name || client.hostName || 'Unnamed Device'}
-                            </span>
-                            {client.guest && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-950 border border-amber-800 text-amber-300">
-                                Guest
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-slate-950/60 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-mono">
+                    <tr>
+                      <th className="px-6 py-3.5 font-medium">Device Name / Host</th>
+                      <th className="px-6 py-3.5 font-medium">IP Address</th>
+                      <th className="px-6 py-3.5 font-medium">MAC Address</th>
+                      <th className="px-6 py-3.5 font-medium">Connection / Medium</th>
+                      <th className="px-6 py-3.5 font-medium text-right">Throughput</th>
+                      <th className="px-6 py-3.5 font-medium text-right">Total Traffic (Down / Up)</th>
+                      <th className="px-6 py-3.5 font-medium text-right">Uptime</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-sans">
+                    {filteredClients.length > 0 ? (
+                      (isClientsExpanded ? filteredClients : filteredClients.slice(0, 5)).map((client) => {
+                        const totalVolume = (client.trafficDown || 0) + (client.trafficUp || 0);
+                        return (
+                          <tr key={client.mac} className="hover:bg-slate-800/40 transition-colors">
+                            {/* Device Name */}
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-slate-100">
+                                  {client.name || client.hostName || 'Unnamed Device'}
+                                </span>
+                                {client.guest && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-950 border border-amber-800 text-amber-300">
+                                    Guest
+                                  </span>
+                                )}
+                              </div>
+                              {client.hostName && client.name && client.hostName !== client.name && (
+                                <span className="text-[11px] text-slate-500 font-mono block">
+                                  {client.hostName}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* IP Address */}
+                            <td className="px-6 py-4 font-mono text-slate-300">
+                              {client.ip || '0.0.0.0'}
+                            </td>
+
+                            {/* MAC Address */}
+                            <td className="px-6 py-4 font-mono text-slate-400">
+                              {formatMac(client.mac)}
+                            </td>
+
+                            {/* Connection Type */}
+                            <td className="px-6 py-4">
+                              {client.wireless ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-950/80 border border-sky-800/60 text-sky-300">
+                                    Wi-Fi {client.ssid ? `(${client.ssid})` : ''}
+                                  </span>
+                                  {client.apName && (
+                                    <span className="text-[11px] text-slate-500">
+                                      via {client.apName}
+                                    </span>
+                                  )}
+                                  {client.rssi !== undefined && (
+                                    <span className="text-[11px] font-mono text-slate-400">
+                                      {client.rssi} dBm
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-950/80 border border-emerald-800/60 text-emerald-300">
+                                    Wired {client.port ? `(Port ${client.port})` : ''}
+                                  </span>
+                                  {client.switchName && (
+                                    <span className="text-[11px] text-slate-500">
+                                      on {client.switchName}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Throughput */}
+                            <td className="px-6 py-4 text-right font-mono font-semibold">
+                              {(client.activity || 0) > 0 ? (
+                                <span className="text-amber-400">{formatRate(client.activity)}</span>
+                              ) : (
+                                <span className="text-slate-500">0 B/s</span>
+                              )}
+                            </td>
+
+                            {/* Total Volume (Down / Up) */}
+                            <td className="px-6 py-4 text-right font-mono text-slate-300">
+                              <div>
+                                <span className="text-emerald-400">{formatBytes(client.trafficDown)}</span>
+                                <span className="text-slate-600 mx-1">/</span>
+                                <span className="text-cyan-400">{formatBytes(client.trafficUp)}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 block">
+                                Total: {formatBytes(totalVolume)}
                               </span>
-                            )}
+                            </td>
+
+                            {/* Uptime */}
+                            <td className="px-6 py-4 text-right font-mono text-slate-400">
+                              {formatUptime(client.uptime)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm font-medium">No client telemetry records found</p>
+                            <p className="text-xs text-slate-600">
+                              {searchQuery
+                                ? `No clients matched filter "${searchQuery}".`
+                                : 'Check controller connectivity or verify site assignment.'}
+                            </p>
                           </div>
-                          {client.hostName && client.name && client.hostName !== client.name && (
-                            <span className="text-[11px] text-slate-500 font-mono block">
-                              {client.hostName}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* IP Address */}
-                        <td className="px-6 py-4 font-mono text-slate-300">
-                          {client.ip || '0.0.0.0'}
-                        </td>
-
-                        {/* MAC Address */}
-                        <td className="px-6 py-4 font-mono text-slate-400">
-                          {formatMac(client.mac)}
-                        </td>
-
-                        {/* Connection Type */}
-                        <td className="px-6 py-4">
-                          {client.wireless ? (
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-950/80 border border-sky-800/60 text-sky-300">
-                                Wi-Fi {client.ssid ? `(${client.ssid})` : ''}
-                              </span>
-                              {client.apName && (
-                                <span className="text-[11px] text-slate-500">
-                                  via {client.apName}
-                                </span>
-                              )}
-                              {client.rssi !== undefined && (
-                                <span className="text-[11px] font-mono text-slate-400">
-                                  {client.rssi} dBm
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-950/80 border border-emerald-800/60 text-emerald-300">
-                                Wired {client.port ? `(Port ${client.port})` : ''}
-                              </span>
-                              {client.switchName && (
-                                <span className="text-[11px] text-slate-500">
-                                  on {client.switchName}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Throughput */}
-                        <td className="px-6 py-4 text-right font-mono font-semibold">
-                          {(client.activity || 0) > 0 ? (
-                            <span className="text-amber-400">{formatRate(client.activity)}</span>
-                          ) : (
-                            <span className="text-slate-500">0 B/s</span>
-                          )}
-                        </td>
-
-                        {/* Total Volume (Down / Up) */}
-                        <td className="px-6 py-4 text-right font-mono text-slate-300">
-                          <div>
-                            <span className="text-emerald-400">{formatBytes(client.trafficDown)}</span>
-                            <span className="text-slate-600 mx-1">/</span>
-                            <span className="text-cyan-400">{formatBytes(client.trafficUp)}</span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 block">
-                            Total: {formatBytes(totalVolume)}
-                          </span>
-                        </td>
-
-                        {/* Uptime */}
-                        <td className="px-6 py-4 text-right font-mono text-slate-400">
-                          {formatUptime(client.uptime)}
                         </td>
                       </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-sm font-medium">No client telemetry records found</p>
-                        <p className="text-xs text-slate-600">
-                          {searchQuery
-                            ? `No clients matched filter "${searchQuery}".`
-                            : 'Check controller connectivity or verify site assignment.'}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Collapsed/Expanded Action Footer */}
+              {filteredClients.length > 5 && (
+                <div className="p-3 bg-slate-950/70 border-t border-slate-800 text-center">
+                  <button
+                    onClick={() => setIsClientsExpanded(!isClientsExpanded)}
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 hover:text-cyan-200 text-xs font-semibold font-mono inline-flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+                  >
+                    <span>{isClientsExpanded ? '▲ Collapse to Top 5 Active Clients' : `▼ Expand All (${filteredClients.length}) Connected Clients`}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Tab 2: Interactive Network Topology Map */}
+        {activeTab === 'topology' && (
+          <TopologyView
+            topology={data.topology}
+            devices={data.devices}
+            clients={data.allClients || data.topClients}
+            siteName={status.siteName || status.siteId}
+          />
+        )}
+
+        {/* Tab 3: VLANs & Wi-Fi SSIDs Matrix */}
+        {activeTab === 'vlan_wifi' && (
+          <VlanWifiView
+            networks={data.networks}
+            ssids={data.ssids}
+            siteName={status.siteName || status.siteId}
+          />
+        )}
+
+        {/* Tab 4: Hardware Health & PoE Power Budgets */}
+        {activeTab === 'hardware_poe' && (
+          <HardwarePoeView
+            poeDevices={data.poeDevices}
+            devices={data.devices}
+            siteName={status.siteName || status.siteId}
+          />
+        )}
 
         {/* Footer info & MCP Bridge Callout */}
         <footer className="pt-4 pb-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 border-t border-slate-800/80">

@@ -4,6 +4,7 @@ import {
   formatRate,
   formatUptime,
   formatMac,
+  resolveClientVlan,
 } from '@/lib/omada/formatters';
 
 describe('formatters', () => {
@@ -98,8 +99,46 @@ describe('formatters', () => {
       expect(formatMac('AA:BB:CC:DD:EE:FF')).toBe('AA:BB:CC:DD:EE:FF');
     });
 
-    it('falls back to uppercase for invalid length strings', () => {
-      expect(formatMac('invalid_mac')).toBe('INVALID_MAC');
+    it('returns original uppercase MAC if irregular format', () => {
+      expect(formatMac('invalid-mac-string')).toBe('INVALID-MAC-STRING');
+    });
+  });
+
+  describe('resolveClientVlan', () => {
+    const networks = [
+      { vlan: 1, gatewaySubnet: '192.168.100.1/24' },
+      { vlan: 10, gatewaySubnet: '192.168.110.1/24' },
+      { vlan: 20, gatewaySubnet: '192.168.120.1/24' },
+      { vlan: 50, gatewaySubnet: '192.168.150.1/24' },
+    ];
+
+    const ssids = [
+      { name: 'TheFarmStrlnk', vlanId: 1 },
+      { name: 'TheFarmIot', vlanId: 20 },
+      { name: 'iot-dmz', vlanId: 50 },
+    ];
+
+    it('returns explicit vlanId if present and > 1', () => {
+      expect(resolveClientVlan({ vlanId: 20, ip: '192.168.100.5' }, networks, ssids)).toBe(20);
+      expect(resolveClientVlan({ vid: 50 }, networks, ssids)).toBe(50);
+    });
+
+    it('resolves VLAN from Wi-Fi SSID mapping', () => {
+      expect(resolveClientVlan({ ssid: 'TheFarmIot' }, networks, ssids)).toBe(20);
+      expect(resolveClientVlan({ ssid: 'iot-dmz' }, networks, ssids)).toBe(50);
+      expect(resolveClientVlan({ ssid: 'TheFarmStrlnk' }, networks, ssids)).toBe(1);
+    });
+
+    it('resolves VLAN from IP subnet prefix match', () => {
+      expect(resolveClientVlan({ ip: '192.168.120.45' }, networks, ssids)).toBe(20);
+      expect(resolveClientVlan({ ip: '192.168.150.12' }, networks, ssids)).toBe(50);
+      expect(resolveClientVlan({ ip: '192.168.110.88' }, networks, ssids)).toBe(10);
+      expect(resolveClientVlan({ ip: '192.168.100.22' }, networks, ssids)).toBe(1);
+    });
+
+    it('falls back to 1 when no rules match', () => {
+      expect(resolveClientVlan({ ip: '10.0.0.1' }, networks, ssids)).toBe(1);
+      expect(resolveClientVlan({}, networks, ssids)).toBe(1);
     });
   });
 });

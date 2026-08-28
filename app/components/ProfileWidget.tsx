@@ -76,13 +76,8 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
       // Proceed
     } finally {
       setUser(null);
-      if (router) {
-        router.push('/login');
-        router.refresh();
-      } else {
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = '/login';
-      }
+      router?.push?.('/login');
+      router?.refresh?.();
     }
   };
 

@@ -875,6 +875,181 @@ describe('OmadaClient', () => {
     });
   });
 
+  describe('Topology, Networks, SSIDs, and PoE Budgets', () => {
+    it('fetches topology graph correctly', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPOMADA_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/api/v2/sites') && !url.includes('/topology')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        if (url.includes('/topology')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: [{ type: 'gateway', name: 'Gateway 1', mac: 'AA-BB', model: 'ER7206' }],
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient();
+      const topo = await client.getTopology();
+      expect(topo).toHaveLength(1);
+      expect(topo[0].name).toBe('Gateway 1');
+    });
+
+    it('fetches LAN networks and maps fields properly', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPOMADA_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/api/v2/sites') && !url.includes('/setting/lan/networks')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        if (url.includes('/setting/lan/networks')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: {
+                data: [
+                  {
+                    id: 'net-1',
+                    name: 'Management',
+                    vlan: 1,
+                    gatewaySubnet: '192.168.100.1/24',
+                    dhcpSettings: { enable: true, ipaddrStart: '192.168.100.10', ipaddrEnd: '192.168.100.250' },
+                  },
+                ],
+              },
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient();
+      const networks = await client.getLanNetworks();
+      expect(networks).toHaveLength(1);
+      expect(networks[0].name).toBe('Management');
+      expect(networks[0].dhcpEnable).toBe(true);
+    });
+
+    it('fetches SSIDs and maps band & security labels properly', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPOMADA_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/setting/wlans') && !url.includes('/ssids')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: { data: [{ id: 'wlan-group-1', name: 'Default' }] },
+            }),
+          };
+        }
+        if (url.includes('/ssids')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: [
+                {
+                  id: 's-1',
+                  name: 'Farm-WiFi',
+                  band: 3,
+                  security: 4,
+                  broadcast: true,
+                  vlanEnable: true,
+                  vlanId: 20,
+                },
+              ],
+            }),
+          };
+        }
+        if (url.includes('/api/v2/sites')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient();
+      const ssids = await client.getSsids();
+      expect(ssids).toHaveLength(1);
+      expect(ssids[0].name).toBe('Farm-WiFi');
+      expect(ssids[0].bandText).toBe('Dual-Band (2.4G + 5G)');
+      expect(ssids[0].securityText).toBe('WPA3-SAE / WPA2');
+    });
+
+    it('fetches PoE budgets from switches', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPOMADA_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/api/v2/sites') && !url.includes('/devices')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        if (url.includes('/devices')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: [
+                {
+                  type: 'switch',
+                  name: 'SG2218P Switch',
+                  mac: '11-22-33-44',
+                  model: 'SG2218P v2.0',
+                  ip: '192.168.100.3',
+                  poeRemain: 120,
+                  poeSupport: true,
+                  clientNum: 4,
+                  cpuUtil: 10,
+                  memUtil: 50,
+                  status: 14,
+                },
+              ],
+            }),
+          };
+        }
+        return { ok: false, status: 404 };
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient();
+      const poe = await client.getPoeBudgets();
+      expect(poe).toHaveLength(1);
+      expect(poe[0].poeRemain).toBe(120);
+      expect(poe[0].totalPoePower).toBe(150);
+      expect(poe[0].poePowerUsed).toBe(30);
+    });
+  });
+
   describe('getOmadaClient singleton', () => {
     it('returns a singleton instance', () => {
       const instance1 = getOmadaClient();

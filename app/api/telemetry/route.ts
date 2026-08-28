@@ -3,6 +3,7 @@ import { getOmadaClient } from '@/lib/omada/client';
 import { TelemetryResponse, OmadaClientDevice } from '@/types/omada';
 import { getCurrentSession } from '@/lib/auth/session';
 import { getUserDeviceTags } from '@/lib/db/queries';
+import { resolveClientVlan } from '@/lib/omada/formatters';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,9 +22,50 @@ export async function GET(request: Request) {
     let allClients: OmadaClientDevice[] | undefined = undefined;
     let status = { ...rawStatus };
 
-    if (rawStatus.controllerOnline) {
+    let topology = undefined;
+    let networks = undefined;
+    let ssids = undefined;
+    let poeDevices = undefined;
+    let devices = undefined;
+
+    if (status.controllerOnline) {
       try {
-        let clients = await client.getActiveClients();
+        const [rawClients, topoData, netData, ssidData, poeData, devData] = await Promise.all([
+          client.getActiveClients(),
+          typeof client.getTopology === 'function' ? client.getTopology().catch(() => []) : Promise.resolve([]),
+          typeof client.getLanNetworks === 'function' ? client.getLanNetworks().catch(() => []) : Promise.resolve([]),
+          typeof client.getSsids === 'function' ? client.getSsids().catch(() => []) : Promise.resolve([]),
+          typeof client.getPoeBudgets === 'function' ? client.getPoeBudgets().catch(() => []) : Promise.resolve([]),
+          typeof client.getDevices === 'function' ? client.getDevices().catch(() => []) : Promise.resolve([]),
+        ]);
+
+        // Enrich clients with resolved vlanId
+        let clients = (rawClients || []).map((c) => ({
+          ...c,
+          vlanId: resolveClientVlan(c, netData, ssidData),
+        }));
+        topology = topoData;
+        poeDevices = poeData;
+        devices = devData;
+
+        // Map live client counts into networks & SSIDs
+        if (netData && netData.length > 0) {
+          networks = netData.map((net) => ({
+            ...net,
+            clientCount: clients.filter((c) => c.vlanId === net.vlan).length,
+          }));
+        } else {
+          networks = netData;
+        }
+
+        if (ssidData && ssidData.length > 0) {
+          ssids = ssidData.map((s) => ({
+            ...s,
+            clientCount: clients.filter((c) => c.ssid?.toLowerCase() === s.name.toLowerCase()).length,
+          }));
+        } else {
+          ssids = ssidData;
+        }
 
         // 1. Check Session & Device Tagging Scoping
         const session = await getCurrentSession();
@@ -78,6 +120,11 @@ export async function GET(request: Request) {
       status,
       topClients,
       ...(includeAll && { allClients }),
+      ...(topology && { topology }),
+      ...(networks && { networks }),
+      ...(ssids && { ssids }),
+      ...(poeDevices && { poeDevices }),
+      ...(devices && { devices }),
     };
 
     return NextResponse.json(payload, {

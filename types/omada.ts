@@ -81,6 +81,8 @@ export interface OmadaDeviceItem {
   needUpgrade?: boolean;
   channel?: number;
   poeRemain?: number;
+  poeSupport?: boolean;
+  totalPoePower?: number;
 }
 
 export interface WirelessHealthSummary {
@@ -131,9 +133,66 @@ export interface NetworkStatusSummary {
   error?: string | null;
 }
 
+export interface OmadaTopologyNode {
+  type: 'gateway' | 'switch' | 'ap' | string;
+  name: string;
+  mac: string;
+  model: string;
+  ip?: string;
+  status?: number;
+  clientCount?: number;
+  uplinkPort?: string | number;
+  successors?: OmadaTopologyNode[];
+}
+
+export interface OmadaLanNetwork {
+  id: string;
+  name: string;
+  vlan: number;
+  gatewaySubnet: string;
+  dhcpEnable: boolean;
+  ipaddrStart?: string;
+  ipaddrEnd?: string;
+  domain?: string;
+  purpose?: string;
+  clientCount?: number;
+}
+
+export interface OmadaSsidSetting {
+  id: string;
+  name: string;
+  band: number; // 1 = 2.4G, 2 = 5G, 3 = 2.4G+5G, 7 = 6G
+  bandText?: string;
+  security: number;
+  securityText?: string;
+  broadcast: boolean;
+  vlanEnable: boolean;
+  vlanId?: number;
+  clientCount?: number;
+}
+
+export interface PoeDeviceBudget {
+  mac: string;
+  name: string;
+  model: string;
+  ip: string;
+  poeRemain: number;
+  totalPoePower?: number;
+  poePowerUsed?: number;
+  clientNum: number;
+  cpuUtil?: number;
+  memUtil?: number;
+  uptime?: number;
+  status: number;
+}
+
 export interface TelemetryResponse {
   status: NetworkStatusSummary;
   topClients: OmadaClientDevice[];
   allClients?: OmadaClientDevice[];
   devices?: OmadaDeviceItem[];
+  topology?: OmadaTopologyNode[];
+  networks?: OmadaLanNetwork[];
+  ssids?: OmadaSsidSetting[];
+  poeDevices?: PoeDeviceBudget[];
 }

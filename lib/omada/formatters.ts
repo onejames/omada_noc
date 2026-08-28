@@ -67,3 +67,46 @@ export function formatMac(mac: string | undefined | null): string {
   }
   return mac.toUpperCase();
 }
+
+/**
+ * Accurately resolves a client's VLAN ID using explicit vlanId/vid, SSID mapping, or IP subnet matching.
+ */
+export function resolveClientVlan(
+  client: { vlanId?: number; vid?: number; ssid?: string; ip?: string },
+  networks?: Array<{ vlan: number; gatewaySubnet?: string }>,
+  ssids?: Array<{ name: string; vlanId?: number }>
+): number {
+  // 1. Direct explicit vlanId or vid (if valid and not 0)
+  const explicitVlan = client.vlanId ?? client.vid;
+  if (typeof explicitVlan === 'number' && explicitVlan > 0 && explicitVlan !== 1) {
+    return explicitVlan;
+  }
+
+  // 2. Match via Wi-Fi SSID configuration
+  if (client.ssid && ssids && ssids.length > 0) {
+    const matchedSsid = ssids.find((s) => s.name.toLowerCase() === client.ssid?.toLowerCase());
+    if (matchedSsid?.vlanId && matchedSsid.vlanId > 0) {
+      return matchedSsid.vlanId;
+    }
+  }
+
+  // 3. Match via IP Subnet prefix from LAN network gateway definitions
+  if (client.ip && networks && networks.length > 0) {
+    const clientParts = client.ip.split('.');
+    if (clientParts.length === 4) {
+      const clientSubnet3 = clientParts.slice(0, 3).join('.');
+      for (const net of networks) {
+        if (net.gatewaySubnet) {
+          const gwIp = net.gatewaySubnet.split('/')[0];
+          const gwParts = gwIp.split('.');
+          if (gwParts.length === 4 && gwParts.slice(0, 3).join('.') === clientSubnet3) {
+            return net.vlan;
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Default to explicit vlan if 1, or fallback to 1 (Default / Management)
+  return typeof explicitVlan === 'number' && explicitVlan > 0 ? explicitVlan : 1;
+}

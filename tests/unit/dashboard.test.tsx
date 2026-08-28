@@ -144,7 +144,7 @@ describe('Dashboard Client Component', () => {
   it('filters clients when typing in search input across hostName, MAC, and SSID', async () => {
     render(<Dashboard initialData={mockInitialData} />);
 
-    const searchInput = screen.getByPlaceholderText(/search by device, ip, mac, or ssid/i);
+    const searchInput = screen.getByPlaceholderText(/search by device/i);
 
     // Search by hostname
     fireEvent.change(searchInput, { target: { value: 'macbook-pro' } });
@@ -164,13 +164,33 @@ describe('Dashboard Client Component', () => {
     // Search unmatched
     fireEvent.change(searchInput, { target: { value: 'nonexistent-device' } });
     expect(screen.getByText(/no client telemetry records found/i)).toBeInTheDocument();
+
+    // Click clear search text link
+    const clearSearchLink = screen.getByRole('button', { name: /clear search/i });
+    fireEvent.click(clearSearchLink);
+    expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
+
+    // Search again and click ✕ button
+    fireEvent.change(searchInput, { target: { value: 'macbook' } });
+    const xButton = screen.getByRole('button', { name: '✕' });
+    fireEvent.click(xButton);
+    expect(searchInput).toHaveValue('');
   });
 
-  it('filters clients by medium (All, Wireless, Wired)', () => {
+  it('changes polling interval selection', () => {
+    render(<Dashboard initialData={mockInitialData} />);
+    const pollingSelect = screen.getByRole('combobox', { name: /polling interval/i });
+    fireEvent.change(pollingSelect, { target: { value: '5' } });
+    expect(pollingSelect).toHaveValue('5');
+    fireEvent.change(pollingSelect, { target: { value: '0' } });
+    expect(pollingSelect).toHaveValue('0');
+  });
+
+  it('filters clients by medium (All, Wi-Fi, Wired)', () => {
     render(<Dashboard initialData={mockInitialData} />);
 
-    // Click Wireless tab
-    const wirelessTab = screen.getByRole('button', { name: /^wireless/i });
+    // Click Wi-Fi tab
+    const wirelessTab = screen.getByRole('button', { name: /^wi-fi/i });
     fireEvent.click(wirelessTab);
     expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
     expect(screen.queryByText('Core Server')).not.toBeInTheDocument();
@@ -435,5 +455,76 @@ describe('Dashboard Client Component', () => {
     // Close buttons
     const closeButtons = screen.getAllByRole('button', { name: '✕' });
     closeButtons.forEach((btn) => fireEvent.click(btn));
+  });
+
+  it('navigates between Telemetry, Topology Map, VLANs & Wi-Fi, and Hardware & PoE tabs', () => {
+    render(<Dashboard initialData={mockInitialData} />);
+
+    // Default tab is Telemetry & Clients
+    expect(screen.getByText(/Connected Client Telemetry/i)).toBeInTheDocument();
+
+    // Switch to Topology Map
+    const topologyTab = screen.getByRole('button', { name: /Topology Map/i });
+    fireEvent.click(topologyTab);
+    expect(screen.getByText(/Physical Network Topology Graph/i)).toBeInTheDocument();
+
+    // Switch to VLANs & Wi-Fi
+    const vlanTab = screen.getByRole('button', { name: /VLANs & Wi-Fi/i });
+    fireEvent.click(vlanTab);
+    expect(screen.getByText(/VLAN Network Segmentation Matrix/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wireless SSIDs & Security Profiles/i)).toBeInTheDocument();
+
+    // Switch to Hardware & PoE
+    const poeTab = screen.getByRole('button', { name: /Hardware & PoE/i });
+    fireEvent.click(poeTab);
+    expect(screen.getByText(/PoE Switch Power Budget & Headroom/i)).toBeInTheDocument();
+
+    // Switch back to Telemetry & Clients
+    const telemetryTab = screen.getByRole('button', { name: /Telemetry & Clients/i });
+    fireEvent.click(telemetryTab);
+    expect(screen.getByText(/Connected Client Telemetry/i)).toBeInTheDocument();
+  });
+
+  it('collapses client list to top 5 by default and allows expanding/collapsing', () => {
+    // Create mock initial data with 8 clients
+    const manyClientsData: TelemetryResponse = {
+      ...mockInitialData,
+      status: { ...mockInitialData.status, totalClients: 8 },
+      topClients: Array.from({ length: 8 }, (_, i) => ({
+        mac: `AA:BB:CC:DD:EE:0${i}`,
+        name: `Client Device ${i + 1}`,
+        ip: `192.168.100.${10 + i}`,
+        wireless: i % 2 === 0,
+        activity: 1000 * (8 - i),
+        trafficDown: 50000,
+        trafficUp: 20000,
+        uptime: 3600,
+      })),
+    };
+
+    render(<Dashboard initialData={manyClientsData} />);
+
+    // By default, showing top 5 active
+    expect(screen.getByText(/TOP 5 ACTIVE/i)).toBeInTheDocument();
+    expect(screen.getByText(/Client Device 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/Client Device 5/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Client Device 6/i)).not.toBeInTheDocument();
+
+    // Click Expand All
+    const expandBtn = screen.getAllByRole('button', { name: /Expand All \(8\)/i })[0];
+    fireEvent.click(expandBtn);
+
+    // Now all 8 are shown
+    expect(screen.getByText(/ALL CLIENTS/i)).toBeInTheDocument();
+    expect(screen.getByText(/Client Device 6/i)).toBeInTheDocument();
+    expect(screen.getByText(/Client Device 8/i)).toBeInTheDocument();
+
+    // Click Collapse to Top 5
+    const collapseBtn = screen.getAllByRole('button', { name: /Collapse to Top 5/i })[0];
+    fireEvent.click(collapseBtn);
+
+    // Collapsed back to 5
+    expect(screen.getByText(/TOP 5 ACTIVE/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Client Device 6/i)).not.toBeInTheDocument();
   });
 });

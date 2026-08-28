@@ -9,6 +9,10 @@ import {
   WirelessHealthSummary,
   NetworkAuditReport,
   NetworkStatusSummary,
+  OmadaTopologyNode,
+  OmadaLanNetwork,
+  OmadaSsidSetting,
+  PoeDeviceBudget,
 } from '@/types/omada';
 import fs from 'fs';
 import path from 'path';
@@ -462,6 +466,170 @@ export class OmadaClient {
     }
 
     return list;
+  }
+
+  /**
+   * Fetches hierarchical physical network topology
+   */
+  async getTopology(): Promise<OmadaTopologyNode[]> {
+    const siteId = await this.getResolvedSiteId();
+    try {
+      const res = await this.authenticatedFetch<OmadaTopologyNode[] | { data: OmadaTopologyNode[] }>(
+        `/api/v2/sites/${encodeURIComponent(siteId)}/topology`
+      );
+
+      if (Array.isArray(res.result)) {
+        return res.result;
+      }
+      if (res.result && Array.isArray((res.result as { data: OmadaTopologyNode[] }).data)) {
+        return (res.result as { data: OmadaTopologyNode[] }).data;
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Fetches LAN Subnets and VLAN definitions
+   */
+  async getLanNetworks(): Promise<OmadaLanNetwork[]> {
+    const siteId = await this.getResolvedSiteId();
+    try {
+      interface RawLanItem {
+        id?: string;
+        name?: string;
+        vlan?: number;
+        gatewaySubnet?: string;
+        dhcpSettings?: { enable?: boolean; ipaddrStart?: string; ipaddrEnd?: string };
+        domain?: string;
+        purpose?: string;
+      }
+
+      const res = await this.authenticatedFetch<RawLanItem[] | { data: RawLanItem[] }>(
+        `/api/v2/sites/${encodeURIComponent(siteId)}/setting/lan/networks?currentPage=1&currentPageSize=100`
+      );
+
+      let list: RawLanItem[] = [];
+      if (Array.isArray(res.result)) {
+        list = res.result;
+      } else if (res.result && Array.isArray(res.result.data)) {
+        list = res.result.data;
+      }
+
+      return list.map((n) => ({
+        id: n.id || String(n.vlan),
+        name: n.name || `VLAN ${n.vlan}`,
+        vlan: n.vlan ?? 1,
+        gatewaySubnet: n.gatewaySubnet || 'Unknown',
+        dhcpEnable: Boolean(n.dhcpSettings?.enable),
+        ipaddrStart: n.dhcpSettings?.ipaddrStart,
+        ipaddrEnd: n.dhcpSettings?.ipaddrEnd,
+        domain: n.domain,
+        purpose: n.purpose,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Fetches Wireless SSIDs configuration
+   */
+  async getSsids(): Promise<OmadaSsidSetting[]> {
+    const siteId = await this.getResolvedSiteId();
+    try {
+      const wlansRes = await this.authenticatedFetch<{ data: Array<{ id: string; name: string }> }>(
+        `/api/v2/sites/${encodeURIComponent(siteId)}/setting/wlans`
+      );
+
+      const wlanId = wlansRes.result?.data?.[0]?.id || 'Default';
+
+      interface RawSsidItem {
+        id?: string;
+        index?: number;
+        name?: string;
+        band?: number;
+        security?: number;
+        broadcast?: boolean;
+        vlanEnable?: boolean;
+        vlanId?: number;
+        vlanSetting?: { currentVlanId?: number };
+      }
+
+      const ssidsRes = await this.authenticatedFetch<RawSsidItem[] | { data: RawSsidItem[] }>(
+        `/api/v2/sites/${encodeURIComponent(siteId)}/setting/wlans/${encodeURIComponent(wlanId)}/ssids`
+      );
+
+      let rawList: RawSsidItem[] = [];
+      if (Array.isArray(ssidsRes.result)) {
+        rawList = ssidsRes.result;
+      } else if (ssidsRes.result && Array.isArray(ssidsRes.result.data)) {
+        rawList = ssidsRes.result.data;
+      }
+
+      const bandLabels: Record<number, string> = {
+        1: '2.4 GHz Only',
+        2: '5 GHz Only',
+        3: 'Dual-Band (2.4G + 5G)',
+        7: '6 GHz (Wi-Fi 6E/7)',
+      };
+
+      const secLabels: Record<number, string> = {
+        0: 'Open (No Security)',
+        1: 'WEP',
+        2: 'WPA-PSK',
+        3: 'WPA2-PSK / AES',
+        4: 'WPA3-SAE / WPA2',
+        5: 'Enterprise (802.1X)',
+      };
+
+      return rawList.map((s) => ({
+        id: s.id || String(s.index || s.name || 'ssid'),
+        name: s.name || 'Unnamed SSID',
+        band: s.band ?? 3,
+        bandText: (s.band !== undefined && bandLabels[s.band]) || 'Dual-Band',
+        security: s.security ?? 3,
+        securityText: (s.security !== undefined && secLabels[s.security]) || 'WPA2-PSK',
+        broadcast: s.broadcast !== false,
+        vlanEnable: Boolean(s.vlanEnable),
+        vlanId: s.vlanId || (s.vlanSetting?.currentVlanId ?? undefined),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Fetches PoE switch power consumption & headroom
+   */
+  async getPoeBudgets(): Promise<PoeDeviceBudget[]> {
+    try {
+      const devices = await this.getDevices('switch');
+      return devices
+        .filter((d) => d.poeRemain !== undefined || d.poeSupport)
+        .map((d) => {
+          const poeRemain = d.poeRemain ?? 0;
+          const totalPower = d.model?.includes('2218') ? 150 : d.model?.includes('205') ? 65 : 120;
+          const powerUsed = Math.max(0, +(totalPower - poeRemain).toFixed(1));
+          return {
+            mac: d.mac,
+            name: d.name,
+            model: d.model,
+            ip: d.ip,
+            poeRemain,
+            totalPoePower: totalPower,
+            poePowerUsed: powerUsed,
+            clientNum: d.clientNum ?? 0,
+            cpuUtil: d.cpuUtil ?? 0,
+            memUtil: d.memUtil ?? 0,
+            uptime: d.uptime ?? 0,
+            status: d.status ?? 14,
+          };
+        });
+    } catch {
+      return [];
+    }
   }
 
   /**

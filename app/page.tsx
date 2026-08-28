@@ -5,6 +5,7 @@ import { getOmadaClient } from '@/lib/omada/client';
 import { getCurrentSession } from '@/lib/auth/session';
 import { getUserDeviceTags } from '@/lib/db/queries';
 import { TelemetryResponse, OmadaClientDevice } from '@/types/omada';
+import { resolveClientVlan } from '@/lib/omada/formatters';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,10 +20,45 @@ export default async function Page() {
   const status = await client.getNetworkStatus();
   
   let clients: OmadaClientDevice[] = [];
+  let topology = undefined;
+  let networks = undefined;
+  let ssids = undefined;
+  let poeDevices = undefined;
 
   if (status.controllerOnline) {
     try {
-      clients = await client.getActiveClients();
+      const [rawClients, topoData, netData, ssidData, poeData] = await Promise.all([
+        client.getActiveClients(),
+        typeof client.getTopology === 'function' ? client.getTopology().catch(() => []) : Promise.resolve([]),
+        typeof client.getLanNetworks === 'function' ? client.getLanNetworks().catch(() => []) : Promise.resolve([]),
+        typeof client.getSsids === 'function' ? client.getSsids().catch(() => []) : Promise.resolve([]),
+        typeof client.getPoeBudgets === 'function' ? client.getPoeBudgets().catch(() => []) : Promise.resolve([]),
+      ]);
+
+      clients = (rawClients || []).map((c) => ({
+        ...c,
+        vlanId: resolveClientVlan(c, netData, ssidData),
+      }));
+      topology = topoData;
+      poeDevices = poeData;
+
+      if (netData && netData.length > 0) {
+        networks = netData.map((net) => ({
+          ...net,
+          clientCount: clients.filter((c) => c.vlanId === net.vlan).length,
+        }));
+      } else {
+        networks = netData;
+      }
+
+      if (ssidData && ssidData.length > 0) {
+        ssids = ssidData.map((s) => ({
+          ...s,
+          clientCount: clients.filter((c) => c.ssid?.toLowerCase() === s.name.toLowerCase()).length,
+        }));
+      } else {
+        ssids = ssidData;
+      }
     } catch (err) {
       console.error('Failed to load initial client list:', err);
     }
@@ -55,6 +91,10 @@ export default async function Page() {
     status,
     topClients: filteredClients.slice(0, 50),
     allClients: filteredClients,
+    ...(topology && { topology }),
+    ...(networks && { networks }),
+    ...(ssids && { ssids }),
+    ...(poeDevices && { poeDevices }),
   };
 
   return <Dashboard initialData={initialData} />;

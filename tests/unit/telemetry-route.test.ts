@@ -33,6 +33,11 @@ describe('API Route: /api/telemetry', () => {
     const mockClientInstance = {
       getNetworkStatus: vi.fn().mockResolvedValue(mockStatus),
       getActiveClients: vi.fn().mockResolvedValue(mockClients),
+      getTopology: vi.fn().mockResolvedValue([{ type: 'gateway', name: 'Gateway 1' }]),
+      getLanNetworks: vi.fn().mockResolvedValue([{ id: 'net-1', name: 'Default', vlan: 1 }]),
+      getSsids: vi.fn().mockResolvedValue([{ id: 's-1', name: 'SSID 1' }]),
+      getPoeBudgets: vi.fn().mockResolvedValue([{ mac: '01', name: 'Switch', poeRemain: 100 }]),
+      getDevices: vi.fn().mockResolvedValue([{ mac: '01', name: 'Switch', type: 'switch' }]),
     };
 
     vi.spyOn(omadaClientModule, 'getOmadaClient').mockReturnValue(mockClientInstance as any);

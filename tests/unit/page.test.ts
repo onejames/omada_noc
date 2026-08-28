@@ -44,12 +44,16 @@ describe('Server Page (app/page.tsx)', () => {
     };
 
     const mockClients = [
-      { mac: '01', name: 'Device 1', ip: '192.168.1.10', wireless: true },
+      { mac: '01', name: 'Device 1', ip: '192.168.1.10', wireless: true, ssid: 'Farm-WiFi', vlanId: 1 },
     ];
 
     const mockClientInstance = {
       getNetworkStatus: vi.fn().mockResolvedValue(mockStatus),
       getActiveClients: vi.fn().mockResolvedValue(mockClients),
+      getTopology: vi.fn().mockResolvedValue([{ type: 'gateway', name: 'G1' }]),
+      getLanNetworks: vi.fn().mockResolvedValue([{ id: '1', name: 'Default', vlan: 1 }]),
+      getSsids: vi.fn().mockResolvedValue([{ id: 's1', name: 'Farm-WiFi' }]),
+      getPoeBudgets: vi.fn().mockResolvedValue([]),
     };
 
     vi.spyOn(omadaClientModule, 'getOmadaClient').mockReturnValue(mockClientInstance as any);
@@ -58,6 +62,8 @@ describe('Server Page (app/page.tsx)', () => {
     expect(jsx).toBeDefined();
     expect(jsx!.props.initialData.status.controllerOnline).toBe(true);
     expect(jsx!.props.initialData.topClients).toHaveLength(1);
+    expect(jsx!.props.initialData.networks).toHaveLength(1);
+    expect(jsx!.props.initialData.ssids).toHaveLength(1);
   });
 
   it('scopes telemetry and recalculates KPIs for regular users with tagged devices', async () => {
