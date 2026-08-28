@@ -55,8 +55,9 @@ sequenceDiagram
 ## 🌟 Key Capabilities
 
 1. **Production-Grade Authentication & Authorization (RBAC):**
-   - Pure-TypeScript PostgreSQL persistence layer (`users`, `user_profiles`, `user_device_tags`, `user_logins`).
-   - Salted password hashing via `bcryptjs` and signed, tamper-proof JWT sessions using `jose`.
+   - Pure-TypeScript PostgreSQL persistence layer (`users`, `user_profiles`, `user_device_tags`, `user_logins`) with In-Memory dev fallback.
+   - Salted password hashing via `bcryptjs` (10 rounds) and signed, tamper-proof JWT sessions (`jose` HMAC-SHA256 JWS).
+   - **Multi-Tier Route Protection:** Next.js 16 Edge Proxy (`proxy.ts`), SSR Server Component guards, and API authorization checks.
    - **15-Minute Inactivity Timeout:** Automated client-side interaction monitoring and server-side token expiry.
 
 2. **User Management & Multi-Tenant Device Tagging:**

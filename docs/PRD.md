@@ -2,30 +2,30 @@
 
 - **Project Name:** Omada NOC Dashboard & MCP Bridge
 - **Target:** GlobalNOC Software & Network Engineer Interview (Sept 10)
-- **Deployment Model:** Containerized Full-Stack Application with PostgreSQL Persistence
+- **Deployment Model:** Containerized Full-Stack Application with PostgreSQL / In-Memory Dual-Mode Persistence
 
 ## 1. Executive Summary
 
 The objective of this project is to build a production-grade, full-stack observability and management platform that interfaces with a live, **physical TP-Link Omada Hardware Controller appliance** (`192.168.100.2`) managing 14 physical devices (9 APs, 4 Switches, 1 Gateway) and 70+ client devices. 
 
-The system features **real Authentication & Role-Based Access Control (RBAC)** backed by **PostgreSQL**, multi-tenant **device tagging**, an **admin user directory with paginated login audits**, a customizable **user profile system with inactivity auto-logout**, and exposes live network state to Large Language Models via the **Model Context Protocol (MCP)**.
+The system features **real Authentication & Role-Based Access Control (RBAC)** backed by **PostgreSQL** (with transparent development fallback), multi-tenant **device tagging**, an **admin user directory with paginated login audits**, a customizable **user profile system with inactivity auto-logout**, Next.js 16 Edge Proxy protection (`proxy.ts`), and exposes live network state to Large Language Models via the **Model Context Protocol (MCP)**.
 
 ## 2. Goals & Success Criteria
 
 - **Hardware Network Integration:** Authenticate directly with the physical Omada SDN Hardware Controller at `192.168.100.2` and ingest live telemetry across infrastructure and client devices.
-- **Production-Grade AuthN & AuthZ (RBAC):** Implement PostgreSQL-backed user management, salted password hashing (`bcryptjs`), secure JWT sessions (`jose`), and 15-minute inactivity timeouts.
-- **Multi-Tenant Device Tagging & Scoping:** Scopes regular user dashboards to their tagged devices, while granting untagged users and administrators full visibility.
+- **Production-Grade AuthN & AuthZ (RBAC):** Implement PostgreSQL-backed user management, salted password hashing (`bcryptjs`), secure signed JWT sessions (`jose` HMAC-SHA256 JWS), and 15-minute inactivity timeouts.
+- **Multi-Tenant Device Tagging & Scoping:** Scopes regular user dashboards to their tagged devices, while granting untagged users (Open Read Fallback) and administrators full visibility.
 - **Admin Audit Trail:** Capture all authentication attempts in a `user_logins` table with paginated browsing (10 records/page).
 - **User Profile Management & Widget:** Provide a top-right corner profile widget, `/profile` management page, display customization, and password updates.
 - **Satisfy AI/LLM Requirements:** Expose 5 specialized MCP tools and an interactive copilot for live network diagnosis and tuning suggestions.
-- **Maintainability & Reliability:** Maintain strict TypeScript types, 98%+ automated test coverage with Vitest, and clean documentation.
+- **Maintainability & Reliability:** Maintain strict TypeScript types, 97%+ automated test coverage with Vitest, and clean enterprise documentation.
 
 ## 3. Core Features
 
 ### A. Authentication & Access Control
-- **PostgreSQL Persistence:** Tables for `users`, `user_profiles`, `user_device_tags`, and `user_logins`.
-- **RBAC Engine:** Distinct permissions for `ADMIN` and `USER` roles.
-- **Inactivity Protection:** 15-minute inactivity timer with automated session invalidation and redirect to login.
+- **Dual-Mode Persistence:** PostgreSQL 16 connection pooling with transparent fallback to in-memory store in local development.
+- **RBAC Engine:** Distinct permissions for `ADMIN` and `USER` roles enforced across Edge Proxy, SSR Server Components, and API routes.
+- **Inactivity Protection:** 15-minute sliding inactivity timer with automated session invalidation and redirect to login.
 - **Default Bootstrap:** Automated database auto-seeding with generic administrator credentials (`admin@omadanoc.com` / `AdminPass123!`).
 
 ### B. User Management & Device Scoping

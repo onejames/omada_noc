@@ -8,19 +8,20 @@
 
 | Phase | Description | Window | Status |
 | :--- | :--- | :--- | :--- |
-| **Phase 1: The Foundation** | Physical Omada Client, API routes, > 98% coverage | Aug 26 – Aug 28 | 🟢 **Complete** |
+| **Phase 1: The Foundation** | Physical Omada Client, API routes, > 97% coverage | Aug 26 – Aug 28 | 🟢 **Complete** |
 | **Phase 2: Frontend Visualization** | Interactive telemetry UI, polling, filters, sort | Aug 29 – Aug 31 | 🟢 **Complete** |
 | **Phase 3: MCP & Containerization** | 5 MCP Tools, AI Copilot, Podman container build | Sept 1 – Sept 3 | 🟢 **Complete** |
-| **Phase 4: AuthN, AuthZ & PostgreSQL** | PostgreSQL, JWT Auth, User Directory, Tagging, Profile, Audit | Sept 4 – Sept 6 | 🟢 **Complete** |
-| **Phase 5: Architecture & Narrative** | Diagrams, tech stack alignment, K8s manifests | Sept 7 – Sept 8 | 🟢 **Complete** |
-| **Phase 6: Polish & Dry Run** | Interview presentation rehearsal | Sept 9 | 🟡 **Ready for Dry Run** |
+| **Phase 4: AuthN, AuthZ & PostgreSQL** | Dual-mode DB, JWT JWS Auth, User Directory, Tagging, Profile, Audit | Sept 4 – Sept 6 | 🟢 **Complete** |
+| **Phase 5: Architecture & Security** | Security audit hardening, diagrams, tech stack alignment, K8s manifests | Sept 7 – Sept 8 | 🟢 **Complete** |
+| **Phase 6: Reporting & Iterative AI** | Executive PDF reports, Top 5 metrics, continuous memory AI insights | Sept 9 | 🔵 **Planned / Next Phase** |
+| **Phase 7: Polish & Dry Run** | Interview presentation rehearsal | Sept 10 | 🟡 **Ready for Dry Run** |
 
 ---
 
 ## Architecture Overview
 - **Data Source:** Real physical TP-Link Omada Hardware Controller appliance located on LAN at `192.168.100.2` (14 physical devices: 9 APs, 4 Switches, 1 Gateway, 70+ client devices).
-- **Application Platform:** `noc_dash` full-stack Next.js 16 / React 19 / Tailwind CSS application with 5-tool MCP server bridge and interactive AI copilot.
-- **Database & Auth Layer:** PostgreSQL database with `users`, `user_profiles`, `user_device_tags`, and `user_logins` tables.
+- **Application Platform:** `noc_dash` full-stack Next.js 16 / React 19 / Tailwind CSS application with Next.js 16 Edge Proxy (`proxy.ts`), 5-tool MCP server bridge, and interactive AI copilot.
+- **Database & Auth Layer:** Dual-Mode PostgreSQL 16 / In-Memory store with `users`, `user_profiles`, `user_device_tags`, and `user_logins` tables.
 - **Production Runtime:** Containerized deployment using Podman / Docker with Next.js standalone output and PostgreSQL service.
 
 ---
@@ -33,7 +34,7 @@
 - [x] Implement the `OmadaClient` engine for 2-step authentication, token/cookie management, dynamic site resolution, and token refresh.
 - [x] Create backend API route `/api/telemetry` in Next.js to proxy Omada data with sorting and filtering.
 - [x] Build standalone diagnostic CLI `scripts/test-controller.ts` to verify physical hardware communication against `192.168.100.2`.
-- [x] Achieve 98%+ test coverage with Vitest and V8 coverage provider (**achieved 78 tests passing**).
+- [x] Achieve 97%+ test coverage with Vitest and V8 coverage provider.
 
 ---
 
@@ -74,30 +75,47 @@
 - [x] Design and document PostgreSQL schema in [`docs/authentication.md`](file:///Users/jameslaster/Code/posh/noc_dash/docs/authentication.md).
 - [x] Create database schema for `users`, `user_profiles`, `user_device_tags`, and `user_logins`.
 - [x] Implement automated database bootstrap & seeder with generic credentials (`admin@omadanoc.com` / `AdminPass123!`).
-- [x] Implement salted password hashing (`bcryptjs`) and secure JWT session management (`jose`).
-- [x] Build 15-minute inactivity timeout mechanism with automated logout and warning redirect.
+- [x] Implement salted password hashing (`bcryptjs`) and secure signed JWT session tokens (`jose` HMAC-SHA256 JWS).
+- [x] Build 15-minute sliding inactivity timeout mechanism with automated logout and warning redirect.
 - [x] Build Admin User Management screen (`/admin/users`) with user creation, role editing, and password resets.
 - [x] Build Interactive Device Tagging matrix mapping physical client devices (by MAC) to user accounts.
 - [x] Build Paginated Login Audit Trail (10 records per page) with IP, user agent, and status badges.
 - [x] Build User Profile Management page (`/profile`) and Top-Right Header Profile Widget.
-- [x] Implement multi-tenant device scoping on `/api/telemetry` and Dashboard.
+- [x] Implement multi-tenant device scoping on `/api/telemetry` and Dashboard (with Open Read Fallback for untagged operators).
+- [x] Implement transparent In-Memory Database store fallback for zero-dependency local development (`npm run dev`).
 
 ---
 
-## Phase 5: Architecture & Narrative (iPad) | Sept 7 - Sept 8
+## Phase 5: Architecture & Security Hardening | Sept 7 - Sept 8
 **Status:** 🟢 Complete
 
 ### Tasks:
 - [x] Draft `README.md` containing setup instructions, default generic credentials, and RBAC matrix.
+- [x] Implement Next.js 16 Edge Proxy (`proxy.ts`) route guard with defense-in-depth API protection.
+- [x] Complete comprehensive Security Standards Review (OWASP Top 10, NIST SP 800-63B, SOC 2).
+- [x] Clarify cryptographic terms (JWS / HMAC-SHA256), entropy requirements, controller TLS recommendations, and security headers in [`docs/authentication.md`](file:///Users/jameslaster/Code/posh/noc_dash/docs/authentication.md).
 - [x] Create Mermaid.js sequence diagrams for Omada Auth flow, PostgreSQL RBAC architecture, and MCP bridge.
 - [x] Review GlobalNOC job description ([`docs/posting.md`](file:///Users/jameslaster/Code/posh/noc_dash/docs/posting.md)) and map every requirement directly to the built codebase in [`docs/techStack.md`](file:///Users/jameslaster/Code/posh/noc_dash/docs/techStack.md).
 
 ---
 
-## Phase 6: Polish & Dry Run (Desktop) | Sept 9
+## Phase 6: Executive Reporting & Iterative AI Insights (Next) | Sept 9
+**Status:** 🔵 Planned / Next Phase
+
+### Tasks:
+- [ ] Implement Executive Report aggregation endpoint `GET /api/reports/summary`.
+- [ ] Build 1-click client-side/server-side Executive PDF Report generator with Top 5 active devices/users, RF signal distribution, and health KPIs.
+- [ ] Design and implement `ai_insights_history` database table for persistent LLM audit findings.
+- [ ] Build Iterative AI Insights engine comparing current telemetry against historical baseline runs (Better/Worse/Persisting).
+- [ ] Expose 6th MCP Tool: `get_audit_history` on the MCP bridge.
+- [ ] Add Admin AI Insights drawer/dashboard panel with health score trend sparkline and historical comparison cards.
+
+---
+
+## Phase 7: Polish & Dry Run (Desktop) | Sept 10
 **Status:** 🟡 Ready for Dry Run
 
 ### Tasks:
 - [ ] Pull latest code to desktop.
-- [ ] Run a fresh container build (`./scripts/build-container.sh`) and verify connection to `192.168.100.2`.
-- [ ] Rehearse a 5-10 minute presentation of the code, UI, PostgreSQL RBAC, and MCP integration for the interview.
+- [ ] Run a fresh container build (`docker compose up -d --build` or `podman compose`) and verify connection to `192.168.100.2`.
+- [ ] Rehearse a 5-10 minute presentation of the code, UI, PostgreSQL RBAC, MCP integration, and Iterative AI Insights for the interview.

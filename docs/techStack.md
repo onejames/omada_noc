@@ -7,7 +7,7 @@ This document maps the chosen technologies directly to the stated requirements a
 ## Architecture Topology
 - **Physical Network Device:** TP-Link Omada SDN Hardware Controller Appliance (`192.168.100.2`), managing 14 real network infrastructure devices (9 EAP Access Points, 4 JetStream Switches, 1 Multi-WAN Gateway) and 70+ client devices.
 - **Application Platform:** Full-stack Next.js 16 + React 19 + TypeScript + 5-Tool Model Context Protocol (MCP) Server.
-- **Database & Persistence:** PostgreSQL database storing users, profiles, device tags, and paginated login audits.
+- **Database & Persistence:** Dual-Mode PostgreSQL 16 / In-Memory Store managing users, extended profiles, device tags, and paginated login audits.
 - **Containerization Target:** Podman (Rootless Linux Container Runtime) & Docker (OCI compatible).
 - **Orchestration & Declarative Config:** Compose (`compose.yaml`) and Kubernetes with Kustomize (`k8s/`).
 
@@ -15,7 +15,7 @@ This document maps the chosen technologies directly to the stated requirements a
 
 ## 1. Next.js 16, React 19, & Tailwind CSS v4
 
-- **Role in Project:** Frontend visualization, API routing, SSR initial telemetry fetch, interactive client components, and user management screens.
+- **Role in Project:** Frontend visualization, API routing, SSR initial telemetry fetch, Next.js 16 Edge Proxy (`proxy.ts`), interactive client components, and user management screens.
 - **GlobalNOC Alignment:**
   - *Requirement:* "Provides advanced research/analysis and stays up-to-date on new industry software development standards, emerging technology, UX/UI design/philosophy."
   - *Requirement:* "Visualizations to help end users understand their data."
@@ -29,7 +29,7 @@ This document maps the chosen technologies directly to the stated requirements a
 - **GlobalNOC Alignment:**
   - *Requirement:* "Provides advanced design, development, testing, and configuration of software systems... tuning of new and existing software."
   - *Requirement:* "IT service management... IT systems security and user access control."
-- **Justification:** Demonstrates enterprise-grade software architecture: parameterized queries (preventing SQL injection), salted password encryption (`bcryptjs`), stateless signed JWT cookies (`jose`), 15-minute inactivity session expiration, and dynamic device-level multi-tenant scoping.
+- **Justification:** Demonstrates enterprise-grade software architecture: parameterized queries (preventing SQL injection), salted password hashing (`bcryptjs`), stateless signed JWT cookies (`jose` with HMAC-SHA256 JWS), 15-minute inactivity session expiration, and dynamic device-level multi-tenant scoping.
 
 ---
 
@@ -66,13 +66,13 @@ This document maps the chosen technologies directly to the stated requirements a
 - **GlobalNOC Alignment:**
   - *Requirement:* "Provides advanced design, development, testing, and configuration of software systems... tuning of new and existing software."
   - *Requirement:* "Network measurement, monitoring, visualization."
-- **Justification:** Demonstrates senior engineering craftsmanship: reverse-engineering Omada v5.15 API handshakes (two-step auth, CSRF tokens, session cookies, dynamic site resolution for `"The Farm"`), strict TypeScript data modeling, and robust automated test suites with > 98% coverage.
+- **Justification:** Demonstrates senior engineering craftsmanship: reverse-engineering Omada v5.15 API handshakes (two-step auth, CSRF tokens, session cookies, dynamic site resolution for `"The Farm"`), strict TypeScript data modeling, and robust automated test suites.
 
 ---
 
 ## 7. Testing & Quality Assurance Suite (Vitest & V8)
 
-- **Role in Project:** Comprehensive automated testing enforcing strict code coverage thresholds (**> 98% coverage**, 78+ tests across 8+ test suites).
+- **Role in Project:** Comprehensive automated testing enforcing strict code coverage thresholds (**> 97% coverage**, 162+ tests across 20 test suites).
 - **GlobalNOC Alignment:**
   - *Requirement:* "Makes recommendations to improve, as well as implements, testing, quality assurance, and documentation protocols and procedures for websites and web applications."
   - *Requirement:* "Demonstrates a high commitment to quality."
