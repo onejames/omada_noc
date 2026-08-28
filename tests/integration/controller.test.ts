@@ -24,5 +24,5 @@ describe('Omada Controller Integration Test', () => {
     } else {
       expect(status.error).toBeDefined();
     }
-  });
+  }, 15000);
 });

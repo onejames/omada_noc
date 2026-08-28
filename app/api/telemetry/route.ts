@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getOmadaClient } from '@/lib/omada/client';
 import { TelemetryResponse, OmadaClientDevice } from '@/types/omada';
+import { getCurrentSession } from '@/lib/auth/session';
+import { getUserDeviceTags } from '@/lib/db/queries';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,14 +15,45 @@ export async function GET(request: Request) {
     const sortBy = (searchParams.get('sort') || 'activity') as 'activity' | 'traffic' | 'uptime';
 
     const client = getOmadaClient();
-    const status = await client.getNetworkStatus();
+    const rawStatus = await client.getNetworkStatus();
 
     let topClients: OmadaClientDevice[] = [];
     let allClients: OmadaClientDevice[] | undefined = undefined;
+    let status = { ...rawStatus };
 
-    if (status.controllerOnline) {
+    if (rawStatus.controllerOnline) {
       try {
-        const clients = await client.getActiveClients();
+        let clients = await client.getActiveClients();
+
+        // 1. Check Session & Device Tagging Scoping
+        const session = await getCurrentSession();
+        if (session && session.role !== 'ADMIN') {
+          const userTags = await getUserDeviceTags(session.userId);
+          if (userTags.length > 0) {
+            const allowedMacs = new Set(userTags.map((t) => t.macAddress.toUpperCase()));
+            // Scope clients strictly to tagged MACs
+            clients = clients.filter((c) => allowedMacs.has((c.mac || '').toUpperCase()));
+
+            // Recalculate KPIs for scoped user view
+            const wirelessCount = clients.filter((c) => c.wireless).length;
+            const wiredCount = clients.filter((c) => !c.wireless).length;
+            const totalActivity = clients.reduce((acc, c) => acc + (c.activity || 0), 0);
+            const totalDown = clients.reduce((acc, c) => acc + (c.trafficDown || 0), 0);
+            const totalUp = clients.reduce((acc, c) => acc + (c.trafficUp || 0), 0);
+
+            status = {
+              ...status,
+              totalClients: clients.length,
+              wirelessClients: wirelessCount,
+              wiredClients: wiredCount,
+              totalActivityRate: totalActivity,
+              totalTrafficDown: totalDown,
+              totalTrafficUp: totalUp,
+            };
+          }
+          // If userTags.length === 0: Fallback rule "if nothing is tagged then you get to see everything."
+        }
+
         const sorted = [...clients].sort((a, b) => {
           if (sortBy === 'activity') return (b.activity || 0) - (a.activity || 0);
           if (sortBy === 'traffic') {

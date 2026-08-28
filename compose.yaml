@@ -1,4 +1,22 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: noc_dash_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: noc_password
+      POSTGRES_DB: noc_dash
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d noc_dash"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   noc_dash:
     build:
       context: .
@@ -14,3 +32,10 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
+      - DATABASE_URL=postgresql://postgres:noc_password@postgres:5432/noc_dash
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

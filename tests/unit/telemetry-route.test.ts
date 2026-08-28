@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from '@/app/api/telemetry/route';
 import * as omadaClientModule from '@/lib/omada/client';
+import * as sessionModule from '@/lib/auth/session';
+import * as dbQueries from '@/lib/db/queries';
 
 describe('API Route: /api/telemetry', () => {
   beforeEach(() => {
@@ -34,6 +36,7 @@ describe('API Route: /api/telemetry', () => {
     };
 
     vi.spyOn(omadaClientModule, 'getOmadaClient').mockReturnValue(mockClientInstance as any);
+    vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue(null);
 
     // Test activity sorting (default) and all=true
     const req1 = new Request('http://localhost:3000/api/telemetry?limit=10&all=true&sort=activity');
@@ -64,6 +67,66 @@ describe('API Route: /api/telemetry', () => {
     const res4 = await GET(req4);
     const json4 = await res4.json();
     expect(json4.topClients).toHaveLength(2);
+  });
+
+  it('scopes telemetry and recalculates KPIs for regular users with tagged devices', async () => {
+    const mockClients = [
+      { mac: 'AA:BB:CC:DD:EE:01', wireless: true, activity: 100, trafficDown: 1000, trafficUp: 500 },
+      { mac: 'AA:BB:CC:DD:EE:02', wireless: false, activity: 200, trafficDown: 2000, trafficUp: 1000 },
+      { mac: 'AA:BB:CC:DD:EE:03', wireless: true, activity: 300, trafficDown: 3000, trafficUp: 1500 },
+    ];
+
+    const mockStatus = {
+      controllerOnline: true,
+      omadacId: 'id-123',
+      siteId: 'site-123',
+      siteName: 'Default',
+      totalClients: 3,
+      wirelessClients: 2,
+      wiredClients: 1,
+      totalActivityRate: 600,
+      totalTrafficDown: 6000,
+      totalTrafficUp: 3000,
+      lastUpdated: new Date().toISOString(),
+      error: null,
+    };
+
+    const mockClientInstance = {
+      getNetworkStatus: vi.fn().mockResolvedValue(mockStatus),
+      getActiveClients: vi.fn().mockResolvedValue(mockClients),
+    };
+
+    vi.spyOn(omadaClientModule, 'getOmadaClient').mockReturnValue(mockClientInstance as any);
+    vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue({
+      userId: 'user-regular',
+      username: 'jdoe',
+      email: 'jdoe@test.com',
+      role: 'USER',
+      lastActive: Date.now(),
+    });
+
+    vi.spyOn(dbQueries, 'getUserDeviceTags').mockResolvedValue([
+      {
+        id: 't-1',
+        userId: 'user-regular',
+        macAddress: 'AA:BB:CC:DD:EE:01',
+        deviceName: 'Work Laptop',
+        createdAt: '',
+      },
+    ]);
+
+    const req = new Request('http://localhost:3000/api/telemetry?all=true');
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.topClients).toHaveLength(1);
+    expect(json.topClients[0].mac).toBe('AA:BB:CC:DD:EE:01');
+    expect(json.status.totalClients).toBe(1);
+    expect(json.status.wirelessClients).toBe(1);
+    expect(json.status.wiredClients).toBe(0);
+    expect(json.status.totalActivityRate).toBe(100);
+    expect(json.status.totalTrafficDown).toBe(1000);
   });
 
   it('returns 503 when controller is offline', async () => {

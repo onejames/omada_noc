@@ -2,43 +2,50 @@
 
 - **Project Name:** Omada NOC Dashboard & MCP Bridge
 - **Target:** GlobalNOC Software & Network Engineer Interview (Sept 10)
-- **Deployment Model:** Containerized Application (Podman) monitoring a Physical Hardware Controller Appliance
+- **Deployment Model:** Containerized Full-Stack Application with PostgreSQL Persistence
 
 ## 1. Executive Summary
 
-The objective of this project is to build a containerized, full-stack observability platform that interfaces with a live, **physical TP-Link Omada Hardware Controller appliance** (`192.168.100.2`) managing 14 physical devices (9 APs, 4 Switches, 1 Gateway) and 70+ client devices. The application visualizes real-time network telemetry in a Next.js dashboard and exposes that data to Large Language Models (LLMs) via the **Model Context Protocol (MCP)** with automated diagnostic audit scoring and interactive copilot workflows.
+The objective of this project is to build a production-grade, full-stack observability and management platform that interfaces with a live, **physical TP-Link Omada Hardware Controller appliance** (`192.168.100.2`) managing 14 physical devices (9 APs, 4 Switches, 1 Gateway) and 70+ client devices. 
 
-This demonstrates full-stack software development, hardware-level API integration, modern UX/UI design, rootless container orchestration with Podman, and cutting-edge AI agent interoperability.
+The system features **real Authentication & Role-Based Access Control (RBAC)** backed by **PostgreSQL**, multi-tenant **device tagging**, an **admin user directory with paginated login audits**, a customizable **user profile system with inactivity auto-logout**, and exposes live network state to Large Language Models via the **Model Context Protocol (MCP)**.
 
 ## 2. Goals & Success Criteria
 
 - **Hardware Network Integration:** Authenticate directly with the physical Omada SDN Hardware Controller at `192.168.100.2` and ingest live telemetry across infrastructure and client devices.
-- **Demonstrate Full-Stack Competence:** Successfully fetch, process, and display network metrics in a responsive, modern Next.js/React/Tailwind dashboard.
-- **Satisfy AI/LLM Requirements:** Implement an MCP server with 5 specialized tools allowing LLMs (e.g., Claude) to query state, inspect hardware, and generate actionable optimization recommendations.
-- **Satisfy Infrastructure Requirements:** Package and deploy the dashboard and MCP bridge using **Podman** (rootless multi-stage container build) and declarative Kubernetes/Kustomize manifests.
-- **Maintainability & Reliability:** Maintain strict TypeScript types, 98%+ automated test coverage with Vitest, and complete documentation.
+- **Production-Grade AuthN & AuthZ (RBAC):** Implement PostgreSQL-backed user management, salted password hashing (`bcryptjs`), secure JWT sessions (`jose`), and 15-minute inactivity timeouts.
+- **Multi-Tenant Device Tagging & Scoping:** Scopes regular user dashboards to their tagged devices, while granting untagged users and administrators full visibility.
+- **Admin Audit Trail:** Capture all authentication attempts in a `user_logins` table with paginated browsing (10 records/page).
+- **User Profile Management & Widget:** Provide a top-right corner profile widget, `/profile` management page, display customization, and password updates.
+- **Satisfy AI/LLM Requirements:** Expose 5 specialized MCP tools and an interactive copilot for live network diagnosis and tuning suggestions.
+- **Maintainability & Reliability:** Maintain strict TypeScript types, 98%+ automated test coverage with Vitest, and clean documentation.
 
-## 3. Core Features (MVP)
+## 3. Core Features
 
-- **Physical Controller Authentication Engine:** A robust backend service handling Omada v5.15 API handshakes (`omadacId` auto-discovery, CSRF tokens, session cookies, and dynamic site resolution for sites like `"The Farm"`).
-- **Telemetry Dashboard (UI):** A read-only, single-page React dashboard displaying:
-  - Hardware controller health/status and site metadata.
-  - High-level aggregate metrics (total live clients, Wi-Fi vs. Ethernet distribution, live throughput rate, session cumulative volume).
-  - An interactive data table of connected devices with search, filtering by medium, and sorting by bandwidth activity, total data, or uptime.
-- **Model Context Protocol (MCP) Server:** Standard IO server bridge exposing 5 network query and diagnostic tools:
-  - **Tool 1:** `get_network_status` (Connectivity, device counts, throughput, cumulative volume).
-  - **Tool 2:** `get_active_clients` (Device inventory, IP/MAC, Wi-Fi SSID/signal, switch port, throughput).
-  - **Tool 3:** `get_network_devices` (Hardware inventory: 9 APs, 4 Switches, 1 Gateway, CPU %, Memory %, Client load per AP).
-  - **Tool 4:** `get_client_detail` (Deep-dive RF telemetry: RSSI dBm, signal %, RF channel, negotiated PHY rates, connected AP/port).
-  - **Tool 5:** `audit_network_health` (Automated network health scoring, critical alerts, performance warnings, and tuning suggestions).
-- **Interactive AI Copilot & Agent CLIs:**
-  - `npm run mcp:copilot` (Interactive conversational terminal REPL for natural-language network queries).
-  - `npm run mcp:agent` (Automated 4-stage LLM question-answering demonstration).
-  - `npm run mcp:inspect` (Visual Anthropic MCP web inspector).
-  - `npm run test:controller` (Standalone hardware diagnostic tool).
+### A. Authentication & Access Control
+- **PostgreSQL Persistence:** Tables for `users`, `user_profiles`, `user_device_tags`, and `user_logins`.
+- **RBAC Engine:** Distinct permissions for `ADMIN` and `USER` roles.
+- **Inactivity Protection:** 15-minute inactivity timer with automated session invalidation and redirect to login.
+- **Default Bootstrap:** Automated database auto-seeding with generic administrator credentials (`admin@omadanoc.com` / `AdminPass123!`).
 
-## 4. Out of Scope (for MVP)
+### B. User Management & Device Scoping
+- **Admin User Directory (`/admin/users`):** Manage accounts, assign roles, reset credentials, and delete users.
+- **Interactive Device Tagging Matrix:** Assign physical client devices (by MAC address) to users with custom device aliases.
+- **Paginated Login Audits:** Browse 10 login attempts per page with timestamp, client IP, user agent, and status.
 
-- Write/Mutation operations (e.g., blocking clients, altering VLAN/SSID config).
+### C. Profile Management & Header Widget
+- **Top-Right Profile Widget:** Shows user avatar, display name, role badge, quick links to profile and admin screens, and logout.
+- **Profile Edit Page (`/profile`):** Edit personal info, job title, department, theme preference, and change password.
+
+### D. Telemetry Dashboard (UI)
+- **Scoped Telemetry View:** Dynamically filters clients and recalculates KPI aggregate cards based on user's tagged devices.
+- **Live Auto-Polling & Filters:** 5s Live, 10s, 30s intervals, search query, medium filters (All / Wi-Fi / Ethernet), and sorting.
+
+### E. Model Context Protocol (MCP) Bridge
+- **5 Core Tools:** `get_network_status`, `get_active_clients`, `get_network_devices`, `get_client_detail`, and `audit_network_health`.
+- **Interactive CLIs:** `npm run mcp:copilot` (REPL), `npm run mcp:agent` (Demo), and `npm run mcp:inspect` (Visual GUI).
+
+## 4. Out of Scope
+
+- Omada controller hardware configuration mutation (read-only monitoring for safe observability).
 - Multi-controller federation (focused on single physical controller with dynamic site resolution).
-- Persistent time-series database (reliant on live controller polling and Next.js ISR/SSR).

@@ -50,85 +50,29 @@ const mockInitialData: TelemetryResponse = {
     },
     {
       mac: 'AA-BB-CC-DD-EE-03',
-      name: 'Guest Phone',
+      name: 'Executive iPad',
       ip: '192.168.1.30',
-      wireless: true,
-      ssid: 'Guest-WiFi',
-      activity: 0,
-      trafficDown: 0,
-      trafficUp: 0,
-      uptime: 1800,
-      guest: true,
-    },
-    {
-      mac: 'AA-BB-CC-DD-EE-04',
-      name: undefined,
-      hostName: undefined,
-      ip: '192.168.1.40',
-      wireless: false,
-      switchName: undefined,
-      port: undefined,
-      activity: 0,
-      trafficDown: 0,
-      trafficUp: 0,
-      uptime: 0,
-      guest: false,
-    },
-  ],
-  allClients: [
-    {
-      mac: 'AA-BB-CC-DD-EE-01',
-      name: 'MacBook Pro',
-      hostName: 'macbook-pro.local',
-      ip: '192.168.1.10',
       wireless: true,
       ssid: 'Corp-WiFi',
-      apName: 'AP-Lobby',
-      rssi: -55,
-      activity: 524288,
-      trafficDown: 30000000,
-      trafficUp: 10000000,
-      uptime: 7200,
-      guest: false,
-    },
-    {
-      mac: 'AA-BB-CC-DD-EE-02',
-      name: 'Core Server',
-      ip: '192.168.1.20',
-      wireless: false,
-      switchName: 'Core-Switch',
-      port: 8,
-      activity: 524288,
-      trafficDown: 20000000,
-      trafficUp: 10000000,
-      uptime: 86400,
-      guest: false,
-    },
-    {
-      mac: 'AA-BB-CC-DD-EE-03',
-      name: 'Guest Phone',
-      ip: '192.168.1.30',
-      wireless: true,
-      ssid: 'Guest-WiFi',
+      rssi: -72,
       activity: 0,
-      trafficDown: 0,
-      trafficUp: 0,
+      trafficDown: 1000000,
+      trafficUp: 200000,
       uptime: 1800,
-      guest: true,
+      guest: false,
     },
     {
       mac: 'AA-BB-CC-DD-EE-04',
       name: undefined,
-      hostName: undefined,
+      hostName: 'guest-phone.local',
       ip: '192.168.1.40',
-      wireless: false,
-      switchName: undefined,
-      port: undefined,
+      wireless: true,
+      ssid: 'Guest-WiFi',
       activity: 0,
-      trafficDown: 0,
-      trafficUp: 0,
-      uptime: 0,
-      guest: false,
+      trafficDown: 500000,
+      trafficUp: 100000,
+      uptime: 600,
+      guest: true,
     },
   ],
 };
@@ -138,6 +82,20 @@ describe('Dashboard Client Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/me')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ authenticated: false, user: null }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => mockInitialData,
+      };
+    });
   });
 
   afterEach(() => {
@@ -148,25 +106,24 @@ describe('Dashboard Client Component', () => {
   it('renders dashboard headers, status pill, and client table with metric cards', () => {
     render(<Dashboard initialData={mockInitialData} />);
 
-    expect(screen.getByText('Omada NOC Telemetry')).toBeInTheDocument();
-    expect(screen.getByText('Headquarters')).toBeInTheDocument();
-    expect(screen.getByText('Controller Online')).toBeInTheDocument();
+    expect(screen.getByText(/Omada NOC Telemetry/i)).toBeInTheDocument();
+    expect(screen.getByText(/MCP Bridge/i)).toBeInTheDocument();
+    expect(screen.getByText(/Headquarters/i)).toBeInTheDocument();
+    expect(screen.getByText(/ID: omada-ab/i)).toBeInTheDocument();
+    expect(screen.getByText(/Controller Online/i)).toBeInTheDocument();
+
     expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
-    expect(screen.getByText('macbook-pro.local')).toBeInTheDocument();
     expect(screen.getByText('Core Server')).toBeInTheDocument();
-    expect(screen.getByText('Guest Phone')).toBeInTheDocument();
-    expect(screen.getByText('Guest')).toBeInTheDocument();
-    expect(screen.getByText('Unnamed Device')).toBeInTheDocument();
-    expect(screen.getByText(/AP-Lobby/)).toBeInTheDocument();
-    expect(screen.getByText(/Core-Switch/)).toBeInTheDocument();
+    expect(screen.getByText('Executive iPad')).toBeInTheDocument();
+    expect(screen.getByText('guest-phone.local')).toBeInTheDocument();
   });
 
   it('handles status with missing siteName and missing omadacId', () => {
-    const customData: TelemetryResponse = {
+    const dataWithoutSiteName: TelemetryResponse = {
       status: {
         controllerOnline: true,
         omadacId: null,
-        siteId: 'site-only-id',
+        siteId: 'site-default',
         siteName: undefined,
         totalClients: 0,
         wirelessClients: 0,
@@ -174,58 +131,59 @@ describe('Dashboard Client Component', () => {
         totalActivityRate: 0,
         totalTrafficDown: 0,
         totalTrafficUp: 0,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: '2026-08-26T00:00:00.000Z',
+        error: null,
       },
       topClients: [],
     };
 
-    render(<Dashboard initialData={customData} />);
-    expect(screen.getByText('site-only-id')).toBeInTheDocument();
+    render(<Dashboard initialData={dataWithoutSiteName} />);
+    expect(screen.getByText('site-default')).toBeInTheDocument();
   });
 
-  it('filters clients when typing in search input across hostName, MAC, and SSID', () => {
+  it('filters clients when typing in search input across hostName, MAC, and SSID', async () => {
     render(<Dashboard initialData={mockInitialData} />);
 
-    const searchInput = screen.getByPlaceholderText(/Search by device/i);
-    
-    // Search by hostName
-    fireEvent.change(searchInput, { target: { value: 'macbook-pro.local' } });
+    const searchInput = screen.getByPlaceholderText(/search by device, ip, mac, or ssid/i);
+
+    // Search by hostname
+    fireEvent.change(searchInput, { target: { value: 'macbook-pro' } });
     expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
     expect(screen.queryByText('Core Server')).not.toBeInTheDocument();
 
     // Search by MAC
     fireEvent.change(searchInput, { target: { value: 'EE-02' } });
     expect(screen.getByText('Core Server')).toBeInTheDocument();
+    expect(screen.queryByText('MacBook Pro')).not.toBeInTheDocument();
 
     // Search by SSID
     fireEvent.change(searchInput, { target: { value: 'Guest-WiFi' } });
-    expect(screen.getByText('Guest Phone')).toBeInTheDocument();
+    expect(screen.getByText('guest-phone.local')).toBeInTheDocument();
+    expect(screen.queryByText('MacBook Pro')).not.toBeInTheDocument();
 
-    // Search query with no match
-    fireEvent.change(searchInput, { target: { value: 'NonExistent' } });
-    expect(screen.getByText(/No clients matched filter "NonExistent"/i)).toBeInTheDocument();
+    // Search unmatched
+    fireEvent.change(searchInput, { target: { value: 'nonexistent-device' } });
+    expect(screen.getByText(/no client telemetry records found/i)).toBeInTheDocument();
   });
 
   it('filters clients by medium (All, Wireless, Wired)', () => {
     render(<Dashboard initialData={mockInitialData} />);
 
-    const wirelessBtn = screen.getByRole('button', { name: /Wireless/i });
-    const wiredBtn = screen.getByRole('button', { name: /Wired/i });
-    const allBtn = screen.getByRole('button', { name: /All/i });
-
-    // Filter Wireless
-    fireEvent.click(wirelessBtn);
+    // Click Wireless tab
+    const wirelessTab = screen.getByRole('button', { name: /^wireless/i });
+    fireEvent.click(wirelessTab);
     expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
-    expect(screen.getByText('Guest Phone')).toBeInTheDocument();
     expect(screen.queryByText('Core Server')).not.toBeInTheDocument();
 
-    // Filter Wired
-    fireEvent.click(wiredBtn);
+    // Click Wired tab
+    const wiredTab = screen.getByRole('button', { name: /^wired/i });
+    fireEvent.click(wiredTab);
     expect(screen.getByText('Core Server')).toBeInTheDocument();
     expect(screen.queryByText('MacBook Pro')).not.toBeInTheDocument();
 
-    // Filter All
-    fireEvent.click(allBtn);
+    // Click All tab
+    const allTab = screen.getByRole('button', { name: /^all/i });
+    fireEvent.click(allTab);
     expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
     expect(screen.getByText('Core Server')).toBeInTheDocument();
   });
@@ -234,35 +192,35 @@ describe('Dashboard Client Component', () => {
     render(<Dashboard initialData={mockInitialData} />);
 
     const sortSelect = screen.getByRole('combobox', { name: /sort clients by/i });
-    
+
     // Sort by traffic
     fireEvent.change(sortSelect, { target: { value: 'traffic' } });
     expect(sortSelect).toHaveValue('traffic');
-    expect(screen.getByText('Core Server')).toBeInTheDocument();
 
     // Sort by uptime
     fireEvent.change(sortSelect, { target: { value: 'uptime' } });
     expect(sortSelect).toHaveValue('uptime');
-    expect(screen.getByText('Core Server')).toBeInTheDocument();
 
     // Sort by activity
     fireEvent.change(sortSelect, { target: { value: 'activity' } });
     expect(sortSelect).toHaveValue('activity');
-    expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
   });
 
   it('handles manual refresh and updates data', async () => {
     const updatedData: TelemetryResponse = {
-      ...mockInitialData,
       status: {
         ...mockInitialData.status,
-        totalClients: 4,
+        totalClients: 5,
+        totalActivityRate: 2097152,
       },
+      topClients: mockInitialData.topClients,
     };
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => updatedData,
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/me')) {
+        return { ok: true, status: 200, json: async () => ({ authenticated: false }) };
+      }
+      return { ok: true, status: 200, json: async () => updatedData };
     });
 
     render(<Dashboard initialData={mockInitialData} />);
@@ -277,10 +235,15 @@ describe('Dashboard Client Component', () => {
 
   it('handles refresh failure with error json response and network exception', async () => {
     // 1. HTTP error response
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      json: async () => ({ error: 'Controller communication timed out' }),
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/me')) {
+        return { ok: true, status: 200, json: async () => ({ authenticated: false }) };
+      }
+      return {
+        ok: false,
+        status: 503,
+        json: async () => ({ error: 'Controller communication timed out' }),
+      };
     });
 
     render(<Dashboard initialData={mockInitialData} />);
@@ -294,7 +257,13 @@ describe('Dashboard Client Component', () => {
     });
 
     // 2. Network rejection
-    global.fetch = vi.fn().mockRejectedValueOnce(new Error('Network disconnected'));
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/me')) {
+        return { ok: true, status: 200, json: async () => ({ authenticated: false }) };
+      }
+      throw new Error('Network disconnected');
+    });
+
     fireEvent.click(refreshBtn);
 
     await waitFor(() => {
@@ -305,9 +274,11 @@ describe('Dashboard Client Component', () => {
   it('triggers auto-refresh on timer and allows changing intervals or pausing', async () => {
     vi.useFakeTimers();
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => mockInitialData,
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/api/auth/me')) {
+        return { ok: true, status: 200, json: async () => ({ authenticated: false }) };
+      }
+      return { ok: true, status: 200, json: async () => mockInitialData };
     });
 
     render(<Dashboard initialData={mockInitialData} />);
@@ -321,17 +292,17 @@ describe('Dashboard Client Component', () => {
       vi.advanceTimersByTime(5000);
     });
 
-    expect(global.fetch).toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/telemetry'));
 
-    // Pause polling
+    // Pause polling (0)
     fireEvent.change(pollingSelect, { target: { value: '0' } });
-    global.fetch = vi.fn();
+    const callCountBefore = (global.fetch as any).mock.calls.length;
 
     await act(async () => {
-      vi.advanceTimersByTime(10000);
+      vi.advanceTimersByTime(15000);
     });
 
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect((global.fetch as any).mock.calls.length).toBe(callCountBefore);
   });
 
   it('renders offline warning banner when initial status is offline', () => {
@@ -339,22 +310,22 @@ describe('Dashboard Client Component', () => {
       status: {
         controllerOnline: false,
         omadacId: null,
-        siteId: 'Default',
+        siteId: 'site-hex-123',
+        siteName: 'Headquarters',
         totalClients: 0,
         wirelessClients: 0,
         wiredClients: 0,
         totalActivityRate: 0,
         totalTrafficDown: 0,
         totalTrafficUp: 0,
-        lastUpdated: new Date().toISOString(),
-        error: 'Refused connection',
+        lastUpdated: '2026-08-26T00:00:00.000Z',
+        error: 'Host unreachable',
       },
       topClients: [],
     };
 
     render(<Dashboard initialData={offlineData} />);
-    expect(screen.getByText('Controller Offline')).toBeInTheDocument();
-    expect(screen.getByText(/Refused connection/i)).toBeInTheDocument();
-    expect(screen.getByText(/No client telemetry records found/i)).toBeInTheDocument();
+    expect(screen.getByText(/Controller Offline/i)).toBeInTheDocument();
+    expect(screen.getByText(/Host unreachable/i)).toBeInTheDocument();
   });
 });

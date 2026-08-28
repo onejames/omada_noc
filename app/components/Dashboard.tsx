@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TelemetryResponse, OmadaClientDevice } from '@/types/omada';
 import { formatBytes, formatRate, formatUptime, formatMac } from '@/lib/omada/formatters';
+import ProfileWidget from './ProfileWidget';
+import InactivityTracker from './InactivityTracker';
 
 interface DashboardProps {
   initialData: TelemetryResponse;
@@ -104,6 +106,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans selection:bg-cyan-500 selection:text-white">
+      <InactivityTracker />
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Top Header */}
@@ -134,7 +137,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
             </div>
           </div>
 
-          {/* Controls: Status, Auto-refresh, Manual Refresh */}
+          {/* Controls: Status, Auto-refresh, Manual Refresh, Profile Widget */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Status Pill */}
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium ${
@@ -186,6 +189,9 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </svg>
               <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
             </button>
+
+            {/* Profile Widget in Top Right */}
+            <ProfileWidget />
           </div>
         </header>
 
