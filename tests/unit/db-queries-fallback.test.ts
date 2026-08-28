@@ -15,6 +15,9 @@ import {
   removeDeviceTagFromUser,
   recordLoginAttempt,
   getPaginatedLogins,
+  saveAiInsight,
+  getRecentAiInsights,
+  getLatestAiInsight,
   resetDbFallbackForTests,
 } from '@/lib/db/queries';
 import { initDb } from '@/lib/db/schema';
@@ -86,6 +89,28 @@ describe('Database Queries with Connection and Auth Failure Fallback', () => {
     // 10. deleteUser
     const deleted = await deleteUser(newUser.id);
     expect(deleted).toBe(true);
+
+    // 11. saveAiInsight, getRecentAiInsights, getLatestAiInsight fallback
+    const insight = await saveAiInsight({
+      triggeredByUserId: admin!.id,
+      healthScore: 95,
+      previousScore: null,
+      scoreDelta: 0,
+      trendDirection: 'INITIAL',
+      executiveSummary: 'Fallback insight test.',
+      resolvedIssues: [],
+      persistingIssues: [],
+      newIssues: [],
+      actionableSuggestions: [],
+      metricsSnapshot: {},
+    });
+    expect(insight.healthScore).toBe(95);
+
+    const recent = await getRecentAiInsights(5);
+    expect(recent.length).toBeGreaterThanOrEqual(1);
+
+    const latest = await getLatestAiInsight();
+    expect(latest?.id).toBe(insight.id);
   });
 
   it('transparently falls back to in-memory store on password authentication failure in dev', async () => {

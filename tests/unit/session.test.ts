@@ -74,5 +74,11 @@ describe('JWT Session & Inactivity Management', () => {
     // Test missing cookie
     mockGetCookie.mockReturnValueOnce(undefined);
     expect(await getCurrentSession()).toBeNull();
+
+    // Test cookies() throwing error
+    mockGetCookie.mockImplementationOnce(() => {
+      throw new Error('Cookie store failure');
+    });
+    expect(await getCurrentSession()).toBeNull();
   });
 });

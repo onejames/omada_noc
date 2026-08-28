@@ -3,17 +3,30 @@ import { render, act, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import InactivityTracker from '@/app/components/InactivityTracker';
 
+const mockPush = vi.fn();
+const mockRefresh = vi.fn();
+let mockPathname = '/';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    refresh: mockRefresh,
+  }),
+  usePathname: () => mockPathname,
+}));
+
 describe('InactivityTracker Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    mockPathname = '/';
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('triggers inactivity logout after 15 minutes of user silence', async () => {
+  it('triggers inactivity logout after 15 minutes of user silence and redirects via router', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true });
 
     render(<InactivityTracker />);
@@ -39,5 +52,20 @@ describe('InactivityTracker Component', () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' });
+    expect(mockPush).toHaveBeenCalledWith('/login?reason=inactivity');
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
+  it('does nothing and clears timer when already on /login route', async () => {
+    mockPathname = '/login';
+    global.fetch = vi.fn();
+
+    render(<InactivityTracker />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(20 * 60 * 1000);
+    });
+
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

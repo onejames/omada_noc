@@ -3,6 +3,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProfileWidget from '@/app/components/ProfileWidget';
 
+const mockPush = vi.fn();
+const mockRefresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    refresh: mockRefresh,
+  }),
+}));
+
 describe('ProfileWidget Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -31,7 +40,7 @@ describe('ProfileWidget Component', () => {
       return { ok: true, status: 200, json: async () => ({}) };
     });
 
-    render(<ProfileWidget />);
+    const { unmount } = render(<ProfileWidget />);
 
     await waitFor(() => {
       expect(screen.getByText('System Admin')).toBeInTheDocument();
@@ -70,6 +79,8 @@ describe('ProfileWidget Component', () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' });
     });
+
+    unmount();
   });
 
   it('renders Sign In link when user is unauthenticated', async () => {

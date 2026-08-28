@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { server, omadaClient, startMcpServer } from '@/mcp/server';
+import * as dbQueries from '@/lib/db/queries';
 
 describe('MCP Server Bridge', () => {
   beforeEach(() => {
@@ -372,6 +373,69 @@ describe('MCP Server Bridge', () => {
       const result = await toolHandler({});
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Error performing network health audit: Audit calculation error');
+    });
+  });
+
+  describe('Tool: get_audit_history', () => {
+    it('returns empty notice when no audits exist', async () => {
+      vi.spyOn(dbQueries, 'getRecentAiInsights').mockResolvedValue([]);
+      const toolHandler = (server as any)._registeredTools?.get_audit_history?.handler;
+      expect(toolHandler).toBeDefined();
+
+      const result = await toolHandler({ limit: 5 });
+      expect(result.content[0].text).toContain('No prior AI network audit history found');
+    });
+
+    it('returns formatted audit timeline with trajectory and resolved/persisting issues', async () => {
+      vi.spyOn(dbQueries, 'getRecentAiInsights').mockResolvedValue([
+        {
+          id: 'ins-1',
+          createdAt: '2026-08-28T12:00:00Z',
+          triggeredByUserId: 'u-1',
+          healthScore: 94,
+          previousScore: 88,
+          scoreDelta: 6,
+          trendDirection: 'IMPROVED',
+          executiveSummary: 'Telemetry improved.',
+          resolvedIssues: [
+            { id: 'r-1', category: 'RF_SIGNAL', severity: 'WARNING', title: 'Weak AP Fixed', description: '' },
+          ],
+          persistingIssues: [
+            {
+              id: 'p-1',
+              category: 'RF_SIGNAL',
+              severity: 'WARNING',
+              title: 'Sticky Client',
+              description: '',
+              firstObservedAt: '',
+              persistedAuditCount: 2,
+            },
+          ],
+          newIssues: [
+            { id: 'n-1', category: 'BANDWIDTH_BURST', severity: 'INFO', title: 'Port Burst', description: '' },
+          ],
+          actionableSuggestions: [],
+          metricsSnapshot: {},
+        },
+      ]);
+
+      const toolHandler = (server as any)._registeredTools?.get_audit_history?.handler;
+      const result = await toolHandler({ limit: 5 });
+
+      expect(result.content[0].text).toContain('Omada AI Continuous Memory Audit Timeline');
+      expect(result.content[0].text).toContain('IMPROVED (+6%)');
+      expect(result.content[0].text).toContain('[Resolved] Weak AP Fixed');
+      expect(result.content[0].text).toContain('[Persisting #2] Sticky Client');
+      expect(result.content[0].text).toContain('[New Anomaly] Port Burst');
+    });
+
+    it('handles query error and returns isError: true', async () => {
+      vi.spyOn(dbQueries, 'getRecentAiInsights').mockRejectedValue(new Error('DB read error'));
+      const toolHandler = (server as any)._registeredTools?.get_audit_history?.handler;
+
+      const result = await toolHandler({ limit: 5 });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Error retrieving AI audit history: DB read error');
     });
   });
 });

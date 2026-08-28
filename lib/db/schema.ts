@@ -62,6 +62,25 @@ export async function initDb(): Promise<void> {
       );
 
       CREATE INDEX IF NOT EXISTS idx_user_logins_created_at ON user_logins (created_at DESC);
+
+      -- 5. AI Insights History Table (Continuous Memory Engine)
+      CREATE TABLE IF NOT EXISTS ai_insights_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        triggered_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        health_score INTEGER NOT NULL,
+        previous_score INTEGER,
+        score_delta INTEGER NOT NULL DEFAULT 0,
+        trend_direction VARCHAR(20) NOT NULL,
+        executive_summary TEXT NOT NULL,
+        resolved_issues JSONB DEFAULT '[]',
+        persisting_issues JSONB DEFAULT '[]',
+        new_issues JSONB DEFAULT '[]',
+        actionable_suggestions JSONB DEFAULT '[]',
+        metrics_snapshot JSONB NOT NULL DEFAULT '{}'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_ai_insights_created_at ON ai_insights_history (created_at DESC);
     `);
 
     // Check if any users exist; if not, seed default admin

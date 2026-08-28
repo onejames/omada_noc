@@ -15,6 +15,9 @@ import {
   removeDeviceTagFromUser,
   recordLoginAttempt,
   getPaginatedLogins,
+  saveAiInsight,
+  getRecentAiInsights,
+  getLatestAiInsight,
   resetDbFallbackForTests,
 } from '@/lib/db/queries';
 
@@ -52,6 +55,23 @@ describe('PostgreSQL Database Queries Repository', () => {
       await expect(tagDeviceToUser('u1', 'AA:BB:CC:DD:EE:FF', 'label')).rejects.toThrow('syntax error');
       await expect(removeDeviceTagFromUser('u1', 'AA:BB:CC:DD:EE:FF')).rejects.toThrow('syntax error');
       await expect(getPaginatedLogins(1, 10)).rejects.toThrow('syntax error');
+      await expect(
+        saveAiInsight({
+          triggeredByUserId: 'u1',
+          healthScore: 90,
+          previousScore: null,
+          scoreDelta: 0,
+          trendDirection: 'INITIAL',
+          executiveSummary: '',
+          resolvedIssues: [],
+          persistingIssues: [],
+          newIssues: [],
+          actionableSuggestions: [],
+          metricsSnapshot: {},
+        })
+      ).rejects.toThrow('syntax error');
+      await expect(getRecentAiInsights(5)).rejects.toThrow('syntax error');
+      await expect(getLatestAiInsight()).rejects.toThrow('syntax error');
     });
   });
 
@@ -249,6 +269,72 @@ describe('PostgreSQL Database Queries Repository', () => {
       expect(res.total).toBe(25);
       expect(res.totalPages).toBe(3);
       expect(res.items).toHaveLength(1);
+    });
+  });
+
+  describe('AI Insights History Queries', () => {
+    it('saveAiInsight executes insert query with parameterized values', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'ins-1',
+            createdAt: '2026-08-28T12:00:00Z',
+            triggeredByUserId: 'u1',
+            healthScore: 90,
+            previousScore: 85,
+            scoreDelta: 5,
+            trendDirection: 'IMPROVED',
+            executiveSummary: 'Telemetry improved.',
+            resolvedIssues: [],
+            persistingIssues: [],
+            newIssues: [],
+            actionableSuggestions: [],
+            metricsSnapshot: {},
+          },
+        ],
+      });
+
+      const res = await saveAiInsight({
+        triggeredByUserId: 'u1',
+        healthScore: 90,
+        previousScore: 85,
+        scoreDelta: 5,
+        trendDirection: 'IMPROVED',
+        executiveSummary: 'Telemetry improved.',
+        resolvedIssues: [],
+        persistingIssues: [],
+        newIssues: [],
+        actionableSuggestions: [],
+        metricsSnapshot: {},
+      });
+
+      expect(res.id).toBe('ins-1');
+      expect(mockQuery).toHaveBeenCalled();
+    });
+
+    it('getRecentAiInsights and getLatestAiInsight fetch history records', async () => {
+      const mockRows = [
+        {
+          id: 'ins-1',
+          createdAt: '2026-08-28T12:00:00Z',
+          healthScore: 90,
+          scoreDelta: 5,
+          trendDirection: 'IMPROVED',
+        },
+      ];
+
+      mockQuery.mockResolvedValueOnce({ rows: mockRows });
+      const recent = await getRecentAiInsights(5);
+      expect(recent).toHaveLength(1);
+
+      mockQuery.mockResolvedValueOnce({ rows: mockRows });
+      const latest = await getLatestAiInsight();
+      expect(latest?.id).toBe('ins-1');
+
+      // Test empty latest
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+      const emptyLatest = await getLatestAiInsight();
+      expect(emptyLatest).toBeNull();
     });
   });
 });

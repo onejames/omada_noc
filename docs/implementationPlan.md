@@ -13,15 +13,15 @@
 | **Phase 3: MCP & Containerization** | 5 MCP Tools, AI Copilot, Podman container build | Sept 1 – Sept 3 | 🟢 **Complete** |
 | **Phase 4: AuthN, AuthZ & PostgreSQL** | Dual-mode DB, JWT JWS Auth, User Directory, Tagging, Profile, Audit | Sept 4 – Sept 6 | 🟢 **Complete** |
 | **Phase 5: Architecture & Security** | Security audit hardening, diagrams, tech stack alignment, K8s manifests | Sept 7 – Sept 8 | 🟢 **Complete** |
-| **Phase 6: Reporting & Iterative AI** | Executive PDF reports, Top 5 metrics, continuous memory AI insights | Sept 9 | 🔵 **Planned / Next Phase** |
+| **Phase 6: Reporting & Iterative AI** | Executive PDF reports, Top 5 metrics, continuous memory AI insights | Sept 9 | 🟢 **Complete** |
 | **Phase 7: Polish & Dry Run** | Interview presentation rehearsal | Sept 10 | 🟡 **Ready for Dry Run** |
 
 ---
 
 ## Architecture Overview
 - **Data Source:** Real physical TP-Link Omada Hardware Controller appliance located on LAN at `192.168.100.2` (14 physical devices: 9 APs, 4 Switches, 1 Gateway, 70+ client devices).
-- **Application Platform:** `noc_dash` full-stack Next.js 16 / React 19 / Tailwind CSS application with Next.js 16 Edge Proxy (`proxy.ts`), 5-tool MCP server bridge, and interactive AI copilot.
-- **Database & Auth Layer:** Dual-Mode PostgreSQL 16 / In-Memory store with `users`, `user_profiles`, `user_device_tags`, and `user_logins` tables.
+- **Application Platform:** `noc_dash` full-stack Next.js 16 / React 19 / Tailwind CSS application with Next.js 16 Edge Proxy (`proxy.ts`), 6-tool MCP server bridge, and interactive AI copilot.
+- **Database & Auth Layer:** Dual-Mode PostgreSQL 16 / In-Memory store with `users`, `user_profiles`, `user_device_tags`, `user_logins`, and `ai_insights_history` tables.
 - **Production Runtime:** Containerized deployment using Podman / Docker with Next.js standalone output and PostgreSQL service.
 
 ---
@@ -99,16 +99,17 @@
 
 ---
 
-## Phase 6: Executive Reporting & Iterative AI Insights (Next) | Sept 9
-**Status:** 🔵 Planned / Next Phase
+## Phase 6: Executive Reporting & Iterative AI Insights | Sept 9
+**Status:** 🟢 Complete
 
 ### Tasks:
-- [ ] Implement Executive Report aggregation endpoint `GET /api/reports/summary`.
-- [ ] Build 1-click client-side/server-side Executive PDF Report generator with Top 5 active devices/users, RF signal distribution, and health KPIs.
-- [ ] Design and implement `ai_insights_history` database table for persistent LLM audit findings.
-- [ ] Build Iterative AI Insights engine comparing current telemetry against historical baseline runs (Better/Worse/Persisting).
-- [ ] Expose 6th MCP Tool: `get_audit_history` on the MCP bridge.
-- [ ] Add Admin AI Insights drawer/dashboard panel with health score trend sparkline and historical comparison cards.
+- [x] Implement Executive Report aggregation endpoint `GET /api/reports/summary`.
+- [x] Build 1-click vector Executive PDF Report generator (`jspdf` + `jspdf-autotable`) with Top 5 active devices/users, RF spectrum distribution, and health KPIs.
+- [x] Design and implement `ai_insights_history` database table with continuous memory store.
+- [x] Build Iterative AI Insights engine comparing current telemetry against historical baseline runs (Better/Worse/Persisting).
+- [x] Expose 6th MCP Tool: `get_audit_history` on the MCP bridge.
+- [x] Add Admin AI Insights drawer (`AiInsightsDrawer.tsx`) with health score trend sparkline and historical comparison cards.
+- [x] Build interactive Executive Reports modal (`ReportsModal.tsx`) with data tables and PDF download.
 
 ---
 

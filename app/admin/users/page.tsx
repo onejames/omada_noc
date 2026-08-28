@@ -295,7 +295,7 @@ export default function AdminUsersPage() {
               <span className="font-bold text-sm text-slate-200">User Management & Security Audits</span>
             </div>
           </div>
-          <ProfileWidget />
+          <ProfileWidget align="right" />
         </div>
       </header>
 

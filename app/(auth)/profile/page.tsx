@@ -143,7 +143,7 @@ export default function ProfilePage() {
               <span className="font-bold text-sm text-slate-200">User Profile & Account</span>
             </div>
           </div>
-          <ProfileWidget />
+          <ProfileWidget align="right" />
         </div>
       </header>
 

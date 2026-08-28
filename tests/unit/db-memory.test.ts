@@ -15,6 +15,9 @@ import {
   memoryRemoveDeviceTagFromUser,
   memoryRecordLoginAttempt,
   memoryGetPaginatedLogins,
+  memorySaveAiInsight,
+  memoryGetRecentAiInsights,
+  memoryGetLatestAiInsight,
 } from '@/lib/db/memory';
 
 describe('In-Memory Database Store (Development Fallback)', () => {
@@ -134,5 +137,31 @@ describe('In-Memory Database Store (Development Fallback)', () => {
     expect(logins.total).toBeGreaterThanOrEqual(2);
     expect(logins.items.length).toBeGreaterThanOrEqual(2);
     expect(logins.items[0].email).toBe('unknown@omadanoc.com');
+  });
+
+  it('saves, retrieves recent, and gets latest AI insight in memory', async () => {
+    const saved = await memorySaveAiInsight({
+      triggeredByUserId: '00000000-0000-0000-0000-000000000001',
+      healthScore: 92,
+      previousScore: 88,
+      scoreDelta: 4,
+      trendDirection: 'IMPROVED',
+      executiveSummary: 'Telemetry improved.',
+      resolvedIssues: [],
+      persistingIssues: [],
+      newIssues: [],
+      actionableSuggestions: [],
+      metricsSnapshot: {},
+    });
+
+    expect(saved.id).toBeDefined();
+    expect(saved.healthScore).toBe(92);
+
+    const recent = await memoryGetRecentAiInsights(5);
+    expect(recent.length).toBeGreaterThanOrEqual(1);
+    expect(recent[0].id).toBe(saved.id);
+
+    const latest = await memoryGetLatestAiInsight();
+    expect(latest?.id).toBe(saved.id);
   });
 });

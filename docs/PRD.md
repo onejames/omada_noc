@@ -41,8 +41,19 @@ The system features **real Authentication & Role-Based Access Control (RBAC)** b
 - **Scoped Telemetry View:** Dynamically filters clients and recalculates KPI aggregate cards based on user's tagged devices.
 - **Live Auto-Polling & Filters:** 5s Live, 10s, 30s intervals, search query, medium filters (All / Wi-Fi / Ethernet), and sorting.
 
-### E. Model Context Protocol (MCP) Bridge
-- **5 Core Tools:** `get_network_status`, `get_active_clients`, `get_network_devices`, `get_client_detail`, and `audit_network_health`.
+### E. Executive PDF Reporting & Telemetry Aggregation
+- **Executive Summary Data Aggregation (`GET /api/reports/summary`):** Live telemetry aggregation spanning Top 5 active devices by instantaneous throughput (Mbps), Top 5 heavy consumers by cumulative session volume (MB/GB), Top 5 active system operators, and 4-tier RF signal distribution (Excellent, Good, Fair, Poor).
+- **1-Click Vector PDF Export (`jspdf` + `jspdf-autotable`):** Zero-Chromium vector PDF generator producing styled executive briefing dossiers with KPI metric cards, data tables, and cryptographic verification metadata.
+- **Reports Modal (`ReportsModal.tsx`):** Interactive modal on the main dashboard with tabbed views and 1-click PDF download.
+
+### F. Continuous Memory Iterative AI Insights Engine
+- **Stateful Diagnostic Memory (`ai_insights_history`):** Persistent audit storage enabling the AI to learn system trajectory and track state across successive runs.
+- **Comparative Trend Logic:** Automatically classifies network status as `INITIAL` baseline, `IMPROVED` (+delta%), `DEGRADED` (-delta%), or `STABLE` ($\pm 2\%$).
+- **Chronic Issue Persistence:** Flags unresolved issues with persistence counters and tracks resolved issues over time.
+- **Admin AI Insights Drawer (`AiInsightsDrawer.tsx`):** Slide-over diagnostic console featuring historical health score trajectory sparklines, categorized issue tabs, and on-demand AI audit trigger.
+
+### G. Model Context Protocol (MCP) Bridge
+- **6 Core Tools:** `get_network_status`, `get_active_clients`, `get_network_devices`, `get_client_detail`, `audit_network_health`, and `get_audit_history`.
 - **Interactive CLIs:** `npm run mcp:copilot` (REPL), `npm run mcp:agent` (Demo), and `npm run mcp:inspect` (Visual GUI).
 
 ## 4. Out of Scope

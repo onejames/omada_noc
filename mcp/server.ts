@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { OmadaClient } from '../lib/omada/client';
 import { formatBytes, formatRate, formatUptime, formatMac } from '../lib/omada/formatters';
+import { getRecentAiInsights } from '../lib/db/queries';
 
 // Initialize the Omada API client from environment variables
 export const omadaClient = new OmadaClient();
@@ -365,6 +366,92 @@ server.tool(
           {
             type: 'text',
             text: `Error performing network health audit: ${msg}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+/**
+ * Tool 6: get_audit_history
+ * Continuous memory audit retrieval showing chronological health score trajectory and resolved/persisting issues.
+ */
+server.tool(
+  'get_audit_history',
+  'Retrieve the chronological history and trajectory of previous AI network health audits, score trends, resolved issues, and persisting warnings.',
+  {
+    limit: z.number().optional().describe('Maximum number of past audit records to retrieve (default: 5).'),
+  },
+  async ({ limit = 5 }) => {
+    try {
+      const history = await getRecentAiInsights(limit);
+
+      if (history.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: '📋 **No prior AI network audit history found in database.** Run an audit to initialize the baseline.',
+            },
+          ],
+        };
+      }
+
+      const historyText = history
+        .map((h, idx) => {
+          const deltaSign = h.scoreDelta > 0 ? `+${h.scoreDelta}` : `${h.scoreDelta}`;
+          const trendIcon =
+            h.trendDirection === 'IMPROVED'
+              ? '📈 IMPROVED'
+              : h.trendDirection === 'DEGRADED'
+              ? '📉 DEGRADED'
+              : h.trendDirection === 'INITIAL'
+              ? '🔵 INITIAL'
+              : '⚖️ STABLE';
+
+          const resolved =
+            h.resolvedIssues && h.resolvedIssues.length > 0
+              ? h.resolvedIssues.map((r) => `    - 🟢 [Resolved] ${r.title}`).join('\n')
+              : '    - None';
+
+          const persisting =
+            h.persistingIssues && h.persistingIssues.length > 0
+              ? h.persistingIssues.map((p) => `    - 🟡 [Persisting #${p.persistedAuditCount}] ${p.title}`).join('\n')
+              : '    - None';
+
+          const newItems =
+            h.newIssues && h.newIssues.length > 0
+              ? h.newIssues.map((n) => `    - 🔴 [New Anomaly] ${n.title}`).join('\n')
+              : '    - None';
+
+          return [
+            `### Audit #${idx + 1} • ${new Date(h.createdAt).toLocaleString()} [${trendIcon} (${deltaSign}%)]`,
+            `- **Health Score:** ${h.healthScore}/100 (Previous: ${h.previousScore ?? 'N/A'})`,
+            `- **Executive Summary:** ${h.executiveSummary}`,
+            `- **Resolved Issues:**\n${resolved}`,
+            `- **Persisting Issues:**\n${persisting}`,
+            `- **New Issues:**\n${newItems}`,
+          ].join('\n');
+        })
+        .join('\n\n---\n\n');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `🧠 **Omada AI Continuous Memory Audit Timeline (${history.length} audit(s) retrieved):**\n\n${historyText}`,
+          },
+        ],
+      };
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: `Error retrieving AI audit history: ${msg}`,
           },
         ],
       };

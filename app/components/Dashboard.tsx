@@ -5,6 +5,8 @@ import { TelemetryResponse, OmadaClientDevice } from '@/types/omada';
 import { formatBytes, formatRate, formatUptime, formatMac } from '@/lib/omada/formatters';
 import ProfileWidget from './ProfileWidget';
 import InactivityTracker from './InactivityTracker';
+import { ReportsModal } from './ReportsModal';
+import { AiInsightsDrawer } from './AiInsightsDrawer';
 
 interface DashboardProps {
   initialData: TelemetryResponse;
@@ -20,6 +22,20 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const [lastRefreshedTime, setLastRefreshedTime] = useState<string>(
     new Date(initialData.status.lastUpdated).toLocaleTimeString()
   );
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState<boolean>(false);
+  const [isAiInsightsDrawerOpen, setIsAiInsightsDrawerOpen] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<'ADMIN' | 'USER' | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.user?.role) {
+          setUserRole(json.user.role);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchTelemetry = useCallback(async () => {
     setLoading(true);
@@ -110,35 +126,49 @@ export default function Dashboard({ initialData }: DashboardProps) {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Top Header */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-700/50 text-cyan-400">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white flex items-center gap-2">
-                  Omada NOC Telemetry
-                  <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-cyan-900/60 border border-cyan-700/50 text-cyan-300">
-                    MCP Bridge
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          {/* Branding Title with 40% Opacity Watermark Background Icon */}
+          <div className="relative group select-none">
+            {/* Background Watermark Icon behind Title (40% opacity) */}
+            <div
+              aria-hidden="true"
+              className="absolute -left-3 -top-2.5 -bottom-2 w-32 opacity-40 pointer-events-none text-cyan-500 select-none overflow-hidden flex items-center justify-start"
+            >
+              <svg
+                className="w-20 h-20 transform -rotate-12 -translate-x-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                  d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                />
+              </svg>
+            </div>
+
+            <div className="relative z-10 pl-1">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                Omada NOC Telemetry
+                <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-cyan-900/60 border border-cyan-700/50 text-cyan-300">
+                  MCP Bridge
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Controller Site: <span className="text-slate-200 font-medium">{status.siteName || status.siteId}</span>
+                {status.omadacId && (
+                  <span className="ml-2 text-slate-500 font-mono text-[11px]">
+                    ID: {status.omadacId.slice(0, 8)}...
                   </span>
-                </h1>
-                <p className="text-sm text-slate-400 mt-0.5">
-                  Controller Site: <span className="text-slate-200 font-medium">{status.siteName || status.siteId}</span>
-                  {status.omadacId && (
-                    <span className="ml-2 text-slate-500 font-mono text-xs">
-                      ID: {status.omadacId.slice(0, 8)}...
-                    </span>
-                  )}
-                </p>
-              </div>
+                )}
+              </p>
             </div>
           </div>
 
-          {/* Controls: Status, Auto-refresh, Manual Refresh, Profile Widget */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Action Controls & Right-Aligned Profile Widget */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             {/* Status Pill */}
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium ${
               status.controllerOnline
@@ -172,6 +202,26 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </select>
             </div>
 
+            {/* Executive Report Button */}
+            <button
+              onClick={() => setIsReportsModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/70 text-slate-200 text-xs font-semibold shadow transition-all cursor-pointer"
+            >
+              <span>📊</span>
+              <span>Executive Report</span>
+            </button>
+
+            {/* AI Insights Button (Admin Only) */}
+            {userRole === 'ADMIN' && (
+              <button
+                onClick={() => setIsAiInsightsDrawerOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-950/80 to-cyan-950/80 hover:from-purple-900/80 hover:to-cyan-900/80 border border-purple-700/60 text-purple-200 text-xs font-semibold shadow transition-all cursor-pointer"
+              >
+                <span>🧠</span>
+                <span>AI Insights</span>
+              </button>
+            )}
+
             {/* Manual Refresh Button */}
             <button
               onClick={fetchTelemetry}
@@ -190,8 +240,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
               <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
             </button>
 
-            {/* Profile Widget in Top Right */}
-            <ProfileWidget />
+            {/* Compact Static Profile Widget on Right */}
+            <div className="border-l border-slate-800 pl-2.5 ml-0.5">
+              <ProfileWidget align="right" />
+            </div>
           </div>
         </header>
 
@@ -546,6 +598,18 @@ export default function Dashboard({ initialData }: DashboardProps) {
         </footer>
 
       </div>
+
+      {/* Executive Report Modal */}
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+      />
+
+      {/* Iterative AI Insights Drawer (Admin) */}
+      <AiInsightsDrawer
+        isOpen={isAiInsightsDrawerOpen}
+        onClose={() => setIsAiInsightsDrawerOpen(false)}
+      />
     </div>
   );
 }

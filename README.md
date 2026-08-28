@@ -55,7 +55,7 @@ sequenceDiagram
 ## 🌟 Key Capabilities
 
 1. **Production-Grade Authentication & Authorization (RBAC):**
-   - Pure-TypeScript PostgreSQL persistence layer (`users`, `user_profiles`, `user_device_tags`, `user_logins`) with In-Memory dev fallback.
+   - Pure-TypeScript PostgreSQL persistence layer (`users`, `user_profiles`, `user_device_tags`, `user_logins`, `ai_insights_history`) with In-Memory dev fallback.
    - Salted password hashing via `bcryptjs` (10 rounds) and signed, tamper-proof JWT sessions (`jose` HMAC-SHA256 JWS).
    - **Multi-Tier Route Protection:** Next.js 16 Edge Proxy (`proxy.ts`), SSR Server Component guards, and API authorization checks.
    - **15-Minute Inactivity Timeout:** Automated client-side interaction monitoring and server-side token expiry.
@@ -66,21 +66,28 @@ sequenceDiagram
    - **Dynamic Telemetry Scoping:** Users with tagged devices only see their hardware and recalculated KPIs. Untagged users and administrators enjoy full global network visibility.
    - **Paginated Login Audits:** 10 records per page tracking all login attempts, IP addresses, user-agents, and authentication outcomes.
 
-3. **User Profile System & Navigation Widget:**
-   - Top-right corner profile badge displaying avatar/initials, name, and role tag (`ADMIN` or `USER`).
-   - Profile management page (`/profile`) for updating personal info, job title, department, theme preference, and password changes.
+3. **Executive PDF Reporting Engine (jsPDF):**
+   - **Comprehensive Data Aggregation (`GET /api/reports/summary`):** Live telemetry aggregation including Top 5 active devices (throughput rate in Mbps), Top 5 heavy consumers (cumulative session volume in MB/GB), Top 5 active system operators, and 4-tier RF signal distribution.
+   - **1-Click Vector PDF Export:** High-resolution vector PDF generated on-the-fly with zero headless browser bloat, formatted with dark/light NOC styling, structured KPI cards, and cryptographic verification metadata.
+   - **Executive Reports Modal (`ReportsModal.tsx`):** Interactive modal on the dashboard for exploring real-time telemetry breakdowns and triggering PDF export.
 
-4. **Real-Time Network Telemetry Dashboard:**
+4. **Iterative AI Insights Engine (Continuous Memory & Learning):**
+   - **Stateful Diagnostic Memory (`ai_insights_history`):** Persistent audit storage enabling the AI to learn system trajectory and track state across successive runs.
+   - **Comparative Trend Tracking:** Automatically compares live telemetry against prior baseline audits to classify trajectory as `INITIAL` baseline, `IMPROVED` (+delta%), `DEGRADED` (-delta%), or `STABLE` ($\pm 2\%$).
+   - **Persisting & Resolved Issue Tracking:** Monitors chronic network issues across audit cycles and flags newly resolved hardware/RF anomalies.
+   - **Admin AI Insights Drawer (`AiInsightsDrawer.tsx`):** Slide-over diagnostic console featuring historical health score sparkline trajectories, categorized issue tabs, and on-demand audit execution.
+
+5. **6-Tool Model Context Protocol (MCP) Server Bridge & AI Copilot:**
+   - Implements `@modelcontextprotocol/sdk` to expose 6 specialized tools (`get_network_status`, `get_active_clients`, `get_network_devices`, `get_client_detail`, `audit_network_health`, `get_audit_history`) to LLM clients (e.g., Claude Desktop, MCP Inspector, custom agents).
+   - Interactive terminal AI Copilot (`npm run mcp:copilot`) for natural-language network diagnosis and optimization advice.
+   - Automated question-answering agent runner (`npm run mcp:agent`) demonstrating multi-scenario JSON-RPC tool selection.
+
+6. **Real-Time Network Telemetry Dashboard:**
    - Visualizes live connected clients (70+ devices), wired vs. Wi-Fi distribution, instantaneous aggregate bandwidth throughput, and session download/upload volume.
    - Interactive client telemetry table with selectable auto-polling intervals (5s Live, 10s, 30s, or Paused) and manual on-demand refresh.
    - Real-time client filtering (Medium: All / Wi-Fi / Ethernet, search across device name, IP, MAC, SSID) and multi-attribute sorting.
 
-5. **5-Tool Model Context Protocol (MCP) Server Bridge & AI Copilot:**
-   - Implements `@modelcontextprotocol/sdk` to expose 5 specialized tools (`get_network_status`, `get_active_clients`, `get_network_devices`, `get_client_detail`, `audit_network_health`) to LLM clients (e.g., Claude Desktop, MCP Inspector, custom agents).
-   - Interactive terminal AI Copilot (`npm run mcp:copilot`) for natural-language network diagnosis and optimization advice.
-   - Automated question-answering agent runner (`npm run mcp:agent`) demonstrating multi-scenario JSON-RPC tool selection.
-
-6. **Container Orchestration with Podman & Docker:**
+7. **Container Orchestration with Podman & Docker:**
    - Multi-stage rootless `Containerfile` and multi-service `compose.yaml` (PostgreSQL + Next.js Standalone).
    - Declarative Kubernetes deployment manifests and Kustomize declarations (`k8s/`).
 
@@ -134,11 +141,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser and sign in 
 | :--- | :---: | :---: | :---: |
 | **Telemetry Dashboard** | Global (All 70+ Devices) | Scoped strictly to tagged MACs | Global (Sees everything per policy) |
 | **KPI Aggregate Cards** | Global Throughput & Volume | Recalculated for tagged devices only | Global Throughput & Volume |
+| **Executive Reports & PDF** | ✅ Full Access | ✅ Scoped / Global Summary | ✅ Scoped / Global Summary |
+| **Iterative AI Insights Drawer** | ✅ Full Access (Run & View) | ❌ Forbidden (403) | ❌ Forbidden (403) |
 | **Profile Widget & Edit** | ✅ Full Access | ✅ Full Access | ✅ Full Access |
 | **User Directory (`/admin/users`)** | ✅ Full Access | ❌ Forbidden (403) | ❌ Forbidden (403) |
 | **Device Tagging Matrix** | ✅ Full Access | ❌ Forbidden (403) | ❌ Forbidden (403) |
 | **Login Audit Log (10/page)** | ✅ Full Access | ❌ Forbidden (403) | ❌ Forbidden (403) |
-| **Network Health Audits** | ✅ Full Access | ❌ Forbidden (403) | ❌ Forbidden (403) |
 
 ---
 
@@ -156,13 +164,14 @@ npm run test:controller
 
 The MCP server connects Large Language Models (e.g. Claude Desktop, AI agents) directly to live Omada network telemetry.
 
-### Exposed MCP Tools (5 Core Tools)
+### Exposed MCP Tools (6 Core Tools)
 
 1. **`get_network_status`**: Real-time controller connectivity, client counts, and aggregate throughput.
 2. **`get_active_clients`**: Client devices with medium filtering (`wireless`/`wired`) and activity/traffic sorting.
 3. **`get_network_devices`**: 14 physical infrastructure devices (9 APs, 4 Switches, 1 Gateway) with CPU/memory loads.
 4. **`get_client_detail`**: Single-device RF diagnostic (RSSI dBm, signal %, RF channel, negotiated PHY rates, connected AP/port).
 5. **`audit_network_health`**: Automated network health scoring (0–100), critical alerts, warnings, and optimization advice.
+6. **`get_audit_history`**: Historical trajectory timeline, persisting issue trends, and comparative delta diagnostics.
 
 ### Running MCP CLIs
 - **Interactive AI Copilot REPL:** `npm run mcp:copilot`
@@ -190,7 +199,7 @@ podman compose up -d --build
 # Run all unit and integration tests
 npm test
 
-# Run tests with V8 code coverage report
+# Run tests with V8 code coverage report (>97% coverage enforced)
 npm run test:coverage
 
 # Production build (strict type-check, lint, and test coverage before compiling)
@@ -211,21 +220,26 @@ noc_dash/
 │   │   └── users/page.tsx           # Admin User Management & Login Audits
 │   ├── api/
 │   │   ├── auth/                    # Auth endpoints (login, logout, me, profile)
-│   │   ├── admin/                   # Admin endpoints (users, devices, logins)
+│   │   ├── admin/                   # Admin endpoints (users, devices, logins, insights)
+│   │   ├── reports/summary/         # Executive Report aggregation endpoint
 │   │   └── telemetry/route.ts       # Scoped Telemetry JSON REST API
 │   ├── components/
-│   │   ├── Dashboard.tsx            # Interactive Telemetry Dashboard
+│   │   ├── Dashboard.tsx            # Interactive Telemetry Dashboard & Header Actions
+│   │   ├── ReportsModal.tsx         # Executive Reports Modal & Vector PDF Export
+│   │   ├── AiInsightsDrawer.tsx     # Continuous Memory AI Insights Slide-Over
 │   │   └── ProfileWidget.tsx        # Top-Right Header Profile & Logout Menu
 │   ├── globals.css                  # Tailwind CSS v4 styles
 │   ├── layout.tsx                   # Root layout with inactivity listener
 │   └── page.tsx                     # Server Component entrypoint
 ├── lib/
+│   ├── ai/                          # Comparative AI diagnostic engine (insights.ts)
 │   ├── auth/                        # JWT sessions, bcrypt hashing, cookies
-│   ├── db/                          # PostgreSQL connection pool, schema, queries
-│   └── omada/                       # Omada API client & formatters
+│   ├── db/                          # PostgreSQL pool, schema, CRUD queries, in-memory store
+│   ├── omada/                       # Omada API client & formatters
+│   └── reports/                     # Telemetry aggregation & jsPDF vector report engine
 ├── mcp/
 │   ├── cli.ts                       # MCP stdio executable
-│   └── server.ts                    # 5-Tool MCP Server bridge
+│   └── server.ts                    # 6-Tool MCP Server bridge
 ├── scripts/
 │   ├── build-container.sh           # Container build automation
 │   ├── run-container.sh             # Container run automation
@@ -233,8 +247,9 @@ noc_dash/
 │   ├── mcp-agent.ts                 # AI Agent question-answering runner
 │   └── test-controller.ts           # Standalone controller diagnostic CLI
 ├── k8s/                             # Kubernetes & Kustomize manifests
-├── tests/                           # Unit & Integration test suites
+├── tests/                           # Unit & Integration test suites (202 tests across 27 suites)
 ├── docs/
+│   ├── reporting.md                 # Executive Reporting & Continuous AI Memory architecture
 │   ├── authentication.md            # Auth, RBAC, DB schema & scoping spec
 │   ├── PRD.md                       # Product Requirements Document
 │   ├── implementationPlan.md        # Timeline and development phases
@@ -253,7 +268,8 @@ noc_dash/
 | :--- | :--- | :--- |
 | **Next.js 16 + React 19 + Tailwind** | *"Provides advanced research/analysis... UX/UI design/philosophy"* & *"Visualizations to help end users understand their data"* | Delivers a high-density, accessible NOC dashboard with real-time polling, dark-mode ergonomics, and sub-second filtering. |
 | **PostgreSQL & AuthN/AuthZ (RBAC)** | *"Design, development, testing of software systems... IT systems security and user access control"* | Production-grade security with salted passwords, encrypted JWT cookies, multi-tenant device tagging, and paginated login audit logs. |
-| **5-Tool Model Context Protocol (MCP)** | *"Experience with programmatic use of LLMs, AI, and related systems. Integration of data sources into LLMs via MCP or similar protocols."* | Bridges physical enterprise network telemetry with LLMs using 5 specialized MCP tools, automated audit scoring, and an interactive AI copilot CLI (`npm run mcp:copilot`). |
+| **Executive Vector PDF Reporting** | *"Prepares structured documentation and reports for management and stakeholders"* | Aggregates multi-dimensional telemetry into 1-click vector PDF reports with zero headless browser bloat. |
+| **Continuous AI Memory & 6-Tool MCP** | *"Experience with programmatic use of LLMs, AI, and related systems. Integration of data sources into LLMs via MCP or similar protocols."* | Stateful continuous-learning AI diagnostic loop comparing historical audit baselines to detect improving, degraded, and persisting issues over time. |
 | **Podman Containerization & K8s** | *"Experience with application containerization platforms such as docker and podman"* & *"kubernetes application deployment methods such as helm or kustomize."* | Rootless multi-stage container deployment with Compose and Kustomize declarations ready for cloud-native orchestration. |
 | **TypeScript Omada Engine** | *"Network measurement, monitoring, visualization."* | Reverse-engineered physical hardware controller API handshakes (two-step auth, CSRF tokens, session cookies, dynamic site resolution for `"The Farm"`), strict type modeling, and robust error recovery. |
-| **Testing Suite (> 98% Coverage)** | *"Testing, configuration, and maintenance of reliable software"* | Automated testing with 78+ tests across 8+ test suites, build gates, and hardware diagnostic scripts testing live appliances on the LAN. |
+| **Testing Suite (> 97% Coverage)** | *"Testing, configuration, and maintenance of reliable software"* | Automated testing with 202 tests across 27 test files, strict build gates, and hardware diagnostic scripts testing live appliances on the LAN. |

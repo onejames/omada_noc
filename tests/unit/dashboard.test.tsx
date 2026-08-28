@@ -328,4 +328,56 @@ describe('Dashboard Client Component', () => {
     expect(screen.getByText(/Controller Offline/i)).toBeInTheDocument();
     expect(screen.getByText(/Host unreachable/i)).toBeInTheDocument();
   });
+
+  it('opens executive reports modal and admin AI insights drawer when header buttons are clicked', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/auth/me')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            authenticated: true,
+            user: { id: 'u1', username: 'admin', role: 'ADMIN' },
+          }),
+        });
+      }
+      if (url.includes('/api/reports/summary')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, report: null }),
+        });
+      }
+      if (url.includes('/api/admin/insights/history')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, history: [] }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    render(<Dashboard initialData={mockInitialData} />);
+
+    // Wait for auth/me to resolve and set role to ADMIN
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /AI Insights/i })).toBeInTheDocument();
+    });
+
+    // Click Executive Report button
+    const reportBtn = screen.getByRole('button', { name: /Executive Report/i });
+    fireEvent.click(reportBtn);
+
+    // Modal should be open
+    expect(screen.getByText(/Executive Telemetry & SLA Report/i)).toBeInTheDocument();
+
+    // Click AI Insights button
+    const aiBtn = screen.getByRole('button', { name: /AI Insights/i });
+    fireEvent.click(aiBtn);
+
+    // Drawer should be open
+    expect(screen.getByText(/Iterative AI Insights Engine/i)).toBeInTheDocument();
+
+    // Close buttons
+    const closeButtons = screen.getAllByRole('button', { name: '✕' });
+    closeButtons.forEach((btn) => fireEvent.click(btn));
+  });
 });

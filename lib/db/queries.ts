@@ -13,6 +13,7 @@ import {
   UserWithDetails,
   PaginatedLogins,
 } from '@/types/auth';
+import { AiInsightRecord } from '@/types/reports';
 import {
   memoryFindUserByEmailOrUsername,
   memoryFindUserById,
@@ -28,6 +29,9 @@ import {
   memoryRemoveDeviceTagFromUser,
   memoryRecordLoginAttempt,
   memoryGetPaginatedLogins,
+  memorySaveAiInsight,
+  memoryGetRecentAiInsights,
+  memoryGetLatestAiInsight,
 } from './memory';
 
 export function resetDbFallbackForTests(): void {
@@ -527,6 +531,121 @@ export async function getPaginatedLogins(
     if (isConnectionOrAuthError(err)) {
       activateMemoryFallback((err as Error).message);
       return memoryGetPaginatedLogins(page, pageSize);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Saves a new AI network health audit insight record.
+ */
+export async function saveAiInsight(
+  insight: Omit<AiInsightRecord, 'id' | 'createdAt'>
+): Promise<AiInsightRecord> {
+  if (isMemoryFallbackActive()) {
+    return memorySaveAiInsight(insight);
+  }
+
+  try {
+    const pool = getDbPool();
+    const res = await pool.query(
+      `INSERT INTO ai_insights_history (
+        triggered_by_user_id, health_score, previous_score, score_delta,
+        trend_direction, executive_summary, resolved_issues, persisting_issues,
+        new_issues, actionable_suggestions, metrics_snapshot
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id, created_at as "createdAt", triggered_by_user_id as "triggeredByUserId",
+                health_score as "healthScore", previous_score as "previousScore",
+                score_delta as "scoreDelta", trend_direction as "trendDirection",
+                executive_summary as "executiveSummary", resolved_issues as "resolvedIssues",
+                persisting_issues as "persistingIssues", new_issues as "newIssues",
+                actionable_suggestions as "actionableSuggestions", metrics_snapshot as "metricsSnapshot"`,
+      [
+        insight.triggeredByUserId,
+        insight.healthScore,
+        insight.previousScore,
+        insight.scoreDelta,
+        insight.trendDirection,
+        insight.executiveSummary,
+        JSON.stringify(insight.resolvedIssues || []),
+        JSON.stringify(insight.persistingIssues || []),
+        JSON.stringify(insight.newIssues || []),
+        JSON.stringify(insight.actionableSuggestions || []),
+        JSON.stringify(insight.metricsSnapshot || {}),
+      ]
+    );
+
+    return res.rows[0];
+  } catch (err) {
+    if (isConnectionOrAuthError(err)) {
+      activateMemoryFallback((err as Error).message);
+      return memorySaveAiInsight(insight);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Retrieves the most recent AI audit insights (default latest 5).
+ */
+export async function getRecentAiInsights(limit: number = 5): Promise<AiInsightRecord[]> {
+  if (isMemoryFallbackActive()) {
+    return memoryGetRecentAiInsights(limit);
+  }
+
+  try {
+    const pool = getDbPool();
+    const res = await pool.query(
+      `SELECT id, created_at as "createdAt", triggered_by_user_id as "triggeredByUserId",
+              health_score as "healthScore", previous_score as "previousScore",
+              score_delta as "scoreDelta", trend_direction as "trendDirection",
+              executive_summary as "executiveSummary", resolved_issues as "resolvedIssues",
+              persisting_issues as "persistingIssues", new_issues as "newIssues",
+              actionable_suggestions as "actionableSuggestions", metrics_snapshot as "metricsSnapshot"
+       FROM ai_insights_history
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    return res.rows;
+  } catch (err) {
+    if (isConnectionOrAuthError(err)) {
+      activateMemoryFallback((err as Error).message);
+      return memoryGetRecentAiInsights(limit);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Retrieves the single latest AI audit insight record.
+ */
+export async function getLatestAiInsight(): Promise<AiInsightRecord | null> {
+  if (isMemoryFallbackActive()) {
+    return memoryGetLatestAiInsight();
+  }
+
+  try {
+    const pool = getDbPool();
+    const res = await pool.query(
+      `SELECT id, created_at as "createdAt", triggered_by_user_id as "triggeredByUserId",
+              health_score as "healthScore", previous_score as "previousScore",
+              score_delta as "scoreDelta", trend_direction as "trendDirection",
+              executive_summary as "executiveSummary", resolved_issues as "resolvedIssues",
+              persisting_issues as "persistingIssues", new_issues as "newIssues",
+              actionable_suggestions as "actionableSuggestions", metrics_snapshot as "metricsSnapshot"
+       FROM ai_insights_history
+       ORDER BY created_at DESC
+       LIMIT 1`
+    );
+
+    if (res.rows.length === 0) return null;
+    return res.rows[0];
+  } catch (err) {
+    if (isConnectionOrAuthError(err)) {
+      activateMemoryFallback((err as Error).message);
+      return memoryGetLatestAiInsight();
     }
     throw err;
   }

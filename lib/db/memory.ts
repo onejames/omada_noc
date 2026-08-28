@@ -1,4 +1,5 @@
 import { UserRecord, UserProfile, UserDeviceTag, UserLoginRecord, UserWithDetails, PaginatedLogins } from '@/types/auth';
+import { AiInsightRecord } from '@/types/reports';
 import { hashPassword } from '@/lib/auth/password';
 
 export interface InMemoryDbState {
@@ -6,6 +7,7 @@ export interface InMemoryDbState {
   profiles: Map<string, UserProfile>;
   deviceTags: Map<string, UserDeviceTag>;
   logins: UserLoginRecord[];
+  aiInsights: AiInsightRecord[];
   isSeeded: boolean;
 }
 
@@ -14,6 +16,7 @@ const memoryState: InMemoryDbState = {
   profiles: new Map(),
   deviceTags: new Map(),
   logins: [],
+  aiInsights: [],
   isSeeded: false,
 };
 
@@ -290,4 +293,27 @@ export async function memoryGetPaginatedLogins(page: number = 1, pageSize: numbe
     pageSize,
     totalPages,
   };
+}
+
+export async function memorySaveAiInsight(
+  insight: Omit<AiInsightRecord, 'id' | 'createdAt'>
+): Promise<AiInsightRecord> {
+  await initMemoryDb();
+  const record: AiInsightRecord = {
+    ...insight,
+    id: `insight-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    createdAt: new Date().toISOString(),
+  };
+  memoryState.aiInsights.unshift(record); // Prepend to newest first
+  return record;
+}
+
+export async function memoryGetRecentAiInsights(limit: number = 5): Promise<AiInsightRecord[]> {
+  await initMemoryDb();
+  return memoryState.aiInsights.slice(0, limit);
+}
+
+export async function memoryGetLatestAiInsight(): Promise<AiInsightRecord | null> {
+  await initMemoryDb();
+  return memoryState.aiInsights[0] || null;
 }
