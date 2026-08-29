@@ -110,6 +110,7 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
 
   const initials = getInitials(user.fullName || user.username || 'U');
   const alignmentClass = align === 'left' ? 'left-0' : 'right-0';
+  const handleClose = () => setIsOpen(false);
 
   return (
     <div className="relative shrink-0" ref={dropdownRef}>
@@ -173,7 +174,7 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
           <div className="py-1">
             <Link
               href="/"
-              onClick={() => setIsOpen(false)}
+              onClick={handleClose}
               className="flex items-center px-3.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800/70 hover:text-white transition-colors"
             >
               <span className="mr-2 text-sm">📊</span> Telemetry Dashboard
@@ -181,7 +182,7 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
 
             <Link
               href="/profile"
-              onClick={() => setIsOpen(false)}
+              onClick={handleClose}
               className="flex items-center px-3.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800/70 hover:text-white transition-colors"
             >
               <span className="mr-2 text-sm">⚙️</span> Edit Profile & Password
@@ -190,7 +191,7 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
             {user.role === 'ADMIN' && (
               <Link
                 href="/admin/users"
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 className="flex items-center px-3.5 py-1.5 text-xs text-amber-300 hover:bg-amber-950/40 transition-colors"
               >
                 <span className="mr-2 text-sm">👥</span> User Management & Audits

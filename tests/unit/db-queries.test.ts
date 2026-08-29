@@ -336,5 +336,38 @@ describe('PostgreSQL Database Queries Repository', () => {
       const emptyLatest = await getLatestAiInsight();
       expect(emptyLatest).toBeNull();
     });
+
+    it('falls back to memory store on connection errors in saveAiInsight, getRecentAiInsights, and getLatestAiInsight', async () => {
+      resetDbFallbackForTests();
+      const connErr = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
+        code: 'ECONNREFUSED',
+      });
+      mockQuery.mockRejectedValue(connErr);
+
+      const saved = await saveAiInsight({
+        triggeredByUserId: 'u-mem-1',
+        healthScore: 88,
+        previousScore: 80,
+        scoreDelta: 8,
+        trendDirection: 'IMPROVED',
+        executiveSummary: 'Saved to memory fallback',
+        resolvedIssues: [],
+        persistingIssues: [],
+        newIssues: [],
+        actionableSuggestions: [],
+        metricsSnapshot: { engineType: 'DEEPSEEK_AGENT', llmModel: 'deepseek-r1:7b' },
+      });
+
+      expect(saved.healthScore).toBe(88);
+      expect(saved.engineType).toBe('DEEPSEEK_AGENT');
+
+      const recent = await getRecentAiInsights(5);
+      expect(recent.length).toBeGreaterThanOrEqual(1);
+      expect(recent[0].healthScore).toBe(88);
+
+      const latest = await getLatestAiInsight();
+      expect(latest).toBeDefined();
+      expect(latest?.healthScore).toBe(88);
+    });
   });
 });

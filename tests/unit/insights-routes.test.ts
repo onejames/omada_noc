@@ -160,4 +160,83 @@ describe('Admin AI Insights API Routes', () => {
       expect(consoleSpy).toHaveBeenCalled();
     });
   });
+
+  describe('POST /api/admin/insights/agent', () => {
+    it('rejects unauthenticated requests with 401', async () => {
+      const { POST: agentInsightHandler } = await import('@/app/api/admin/insights/agent/route');
+      vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue(null);
+
+      const res = await agentInsightHandler();
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects non-admin requests with 403', async () => {
+      const { POST: agentInsightHandler } = await import('@/app/api/admin/insights/agent/route');
+      vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue({
+        userId: 'u-user',
+        username: 'user',
+        email: 'user@test.com',
+        role: 'USER',
+        lastActive: Date.now(),
+      });
+
+      const res = await agentInsightHandler();
+      expect(res.status).toBe(403);
+    });
+
+    it('executes DeepSeek LLM Agent and returns 200 for admins', async () => {
+      const { POST: agentInsightHandler } = await import('@/app/api/admin/insights/agent/route');
+      vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue({
+        userId: 'u-admin',
+        username: 'admin',
+        email: 'admin@omadanoc.com',
+        role: 'ADMIN',
+        lastActive: Date.now(),
+      });
+
+      vi.spyOn(insightsModule, 'runDeepSeekAgentInsight').mockResolvedValue({
+        id: 'ins-agent-1',
+        createdAt: '2026-08-28T12:00:00Z',
+        triggeredByUserId: 'u-admin',
+        healthScore: 96,
+        previousScore: null,
+        scoreDelta: 0,
+        trendDirection: 'INITIAL',
+        executiveSummary: 'DeepSeek-R1 agent verification complete.',
+        engineType: 'DEEPSEEK_AGENT',
+        llmModel: 'deepseek-r1:7b',
+        resolvedIssues: [],
+        persistingIssues: [],
+        newIssues: [],
+        actionableSuggestions: [],
+        metricsSnapshot: {},
+      });
+
+      const res = await agentInsightHandler();
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.insight.engineType).toBe('DEEPSEEK_AGENT');
+    });
+
+    it('handles unexpected exceptions and returns 500', async () => {
+      const { POST: agentInsightHandler } = await import('@/app/api/admin/insights/agent/route');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue({
+        userId: 'u-admin',
+        username: 'admin',
+        email: 'admin@omadanoc.com',
+        role: 'ADMIN',
+        lastActive: Date.now(),
+      });
+
+      vi.spyOn(insightsModule, 'runDeepSeekAgentInsight').mockRejectedValue(new Error('Ollama offline'));
+
+      const res = await agentInsightHandler();
+      expect(res.status).toBe(500);
+      const json = await res.json();
+      expect(json.error).toBe('Ollama offline');
+      expect(consoleSpy).toHaveBeenCalled();
+    });
+  });
 });

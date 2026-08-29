@@ -5,12 +5,10 @@ import TopologyView from '@/app/components/TopologyView';
 import { OmadaTopologyNode } from '@/types/omada';
 
 describe('TopologyView Component', () => {
-  it('renders fallback topology tree when no data is passed', () => {
+  it('renders honest unavailable status when no data is passed', () => {
     render(<TopologyView />);
-    expect(screen.getByText(/Physical Network Topology Graph/i)).toBeInTheDocument();
-    expect(screen.getByText(/Gateway ER7206/i)).toBeInTheDocument();
-    expect(screen.getByText(/Backbone SG2218P/i)).toBeInTheDocument();
-    expect(screen.getByText(/Main Center EAP670/i)).toBeInTheDocument();
+    expect(screen.getByText(/Physical Topology Data Unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/The Omada Controller did not return an active link-layer topology/i)).toBeInTheDocument();
   });
 
   it('renders custom topology nodes and opens/closes the node inspection drawer', () => {
@@ -77,7 +75,13 @@ describe('TopologyView Component', () => {
   });
 
   it('filters nodes by layer buttons (gateway, switch, ap, all)', () => {
-    render(<TopologyView />);
+    const devices = [
+      { mac: '00:11', name: 'Gateway ER7206', type: 'gateway', model: 'ER7206', ip: '192.168.1.1', status: 14 },
+      { mac: '00:22', name: 'Backbone SG2218P', type: 'switch', model: 'SG2218P', ip: '192.168.1.2', status: 14 },
+      { mac: '00:33', name: 'Main Center EAP670', type: 'ap', model: 'EAP670', ip: '192.168.1.3', status: 14 },
+    ];
+
+    render(<TopologyView devices={devices as any} />);
 
     // Filter to Gateway
     fireEvent.click(screen.getByRole('button', { name: /gateway/i }));

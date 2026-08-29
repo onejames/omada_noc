@@ -5,11 +5,10 @@ import WanHealthWidget from '@/app/components/WanHealthWidget';
 import { WanStatusInfo } from '@/types/omada';
 
 describe('WanHealthWidget Component', () => {
-  it('renders fallback WAN status when none provided', () => {
+  it('renders honest unavailable status when wanStatus is undefined', () => {
     render(<WanHealthWidget />);
-    expect(screen.getByText(/Starlink/i)).toBeInTheDocument();
-    expect(screen.getByText(/ONLINE/i)).toBeInTheDocument();
-    expect(screen.getByText(/24ms Ping/i)).toBeInTheDocument();
+    expect(screen.getByText(/WAN Gateway Telemetry Unavailable/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/UNCONFIGURED/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('toggles expand/collapse details and renders backup WAN', () => {

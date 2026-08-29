@@ -125,4 +125,7 @@ export interface AiInsightRecord {
   actionableSuggestions: AiSuggestionItem[];
   metricsSnapshot: Record<string, unknown>;
   userFeedback?: Record<string, 'HELPFUL' | 'EXPECTED_IOT' | 'SUPPRESSED'>;
+  engineType?: 'NLG_ALGORITHMIC' | 'DEEPSEEK_AGENT';
+  llmModel?: string;
+  thinkingProcess?: string;
 }

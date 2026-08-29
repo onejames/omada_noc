@@ -6,53 +6,40 @@ import { formatRate } from '@/lib/omada/formatters';
 
 interface WanHealthWidgetProps {
   wanStatus?: WanStatusInfo;
+  siteActivityRate?: number;
 }
 
-export default function WanHealthWidget({ wanStatus }: WanHealthWidgetProps) {
+export default function WanHealthWidget({ wanStatus, siteActivityRate = 0 }: WanHealthWidgetProps) {
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
-  const fallbackWan: WanStatusInfo = {
-    gatewayModel: 'ER7206 v2.20',
-    primaryWan: {
-      port: 1,
-      name: 'WAN 1 (Starlink Primary)',
-      type: 'wan',
-      online: true,
-      ip: '100.78.120.44',
-      gateway: '192.168.1.1',
-      dns: ['1.1.1.1', '8.8.8.8'],
-      proto: 'DHCP',
-      latencyMs: 24,
-      packetLossPercent: 0.0,
-      rxRate: 1450000,
-      txRate: 320000,
-      uptime: 864200,
-      providerName: 'Starlink Gen 3 Satellite',
-      isPrimary: true,
-    },
-    backupWan: {
-      port: 2,
-      name: 'WAN 2 (LTE Backup)',
-      type: 'wan/lan',
-      online: true,
-      ip: '192.168.8.100',
-      gateway: '192.168.8.1',
-      dns: ['9.9.9.9', '1.0.0.1'],
-      proto: 'DHCP',
-      latencyMs: 42,
-      packetLossPercent: 0.0,
-      rxRate: 1200,
-      txRate: 800,
-      uptime: 864200,
-      providerName: 'Cellular LTE Failover',
-      isPrimary: false,
-    },
-    dualWanMode: 'Failover',
-    overallUptimePercent: 99.98,
-  };
+  if (!wanStatus) {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 shadow-md transition-all">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-lg shrink-0 text-slate-500">
+            📡
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-bold text-slate-300 font-mono uppercase tracking-wide">
+                WAN Gateway Telemetry Unavailable
+              </h4>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-950 border border-slate-800 text-slate-400 font-bold">
+                UNCONFIGURED
+              </span>
+            </div>
+            <p className="text-[11px] font-mono text-slate-500 mt-0.5">
+              No managed Omada SDN gateway (e.g. ER7206) is adopted on this site, or WAN statistics are unconfigured on the controller.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const data = wanStatus || fallbackWan;
-  const { primaryWan, backupWan } = data;
+  const { primaryWan, backupWan } = wanStatus;
+  const rxRate = (primaryWan.rxRate && primaryWan.rxRate > 0) ? primaryWan.rxRate : Math.round(siteActivityRate * 0.8);
+  const txRate = (primaryWan.txRate && primaryWan.txRate > 0) ? primaryWan.txRate : Math.round(siteActivityRate * 0.2);
 
   return (
     <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 shadow-md transition-all">
@@ -77,7 +64,7 @@ export default function WanHealthWidget({ wanStatus }: WanHealthWidgetProps) {
               </span>
             </div>
             <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-              Gateway: <span className="text-slate-200">{data.gatewayModel}</span> • Public IP: <span className="text-slate-200">{primaryWan.ip}</span> • Loss: <span className="text-emerald-400">{primaryWan.packetLossPercent}%</span>
+              Gateway: <span className="text-slate-200">{wanStatus.gatewayModel}</span> • Public IP: <span className="text-slate-200">{primaryWan.ip}</span> • Loss: <span className="text-emerald-400">{primaryWan.packetLossPercent}%</span>
             </p>
           </div>
         </div>
@@ -85,8 +72,8 @@ export default function WanHealthWidget({ wanStatus }: WanHealthWidgetProps) {
         {/* Right: Live Rates & Expand Button */}
         <div className="flex items-center gap-4 self-end md:self-auto">
           <div className="text-right font-mono text-xs hidden sm:block">
-            <div className="text-cyan-400 font-bold">↓ {formatRate(primaryWan.rxRate)}</div>
-            <div className="text-emerald-400 font-bold text-[11px]">↑ {formatRate(primaryWan.txRate)}</div>
+            <div className="text-cyan-400 font-bold">↓ {formatRate(rxRate)}</div>
+            <div className="text-emerald-400 font-bold text-[11px]">↑ {formatRate(txRate)}</div>
           </div>
 
           <button
@@ -130,7 +117,7 @@ export default function WanHealthWidget({ wanStatus }: WanHealthWidgetProps) {
               <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400 pt-1">
                 <div>IP / Proto: <strong className="text-slate-200">{backupWan.ip} ({backupWan.proto})</strong></div>
                 <div>Gateway IP: <strong className="text-slate-200">{backupWan.gateway}</strong></div>
-                <div>Failover Mode: <strong className="text-cyan-300">{data.dualWanMode}</strong></div>
+                <div>Failover Mode: <strong className="text-cyan-300">{wanStatus.dualWanMode}</strong></div>
                 <div>Standby Ping: <strong className="text-slate-300">{backupWan.latencyMs} ms</strong></div>
               </div>
             </div>

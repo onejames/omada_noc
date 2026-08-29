@@ -844,74 +844,44 @@ export class OmadaClient {
   /**
    * Fetches WAN uplink status and Internet telemetry
    */
-  async getWanStatus(): Promise<WanStatusInfo> {
-    const siteId = await this.getResolvedSiteId();
+  async getWanStatus(): Promise<WanStatusInfo | undefined> {
     try {
-      await this.authenticatedFetch<Record<string, unknown>>(
-        `/api/v2/sites/${encodeURIComponent(siteId)}/devices`
-      );
+      const [devices, clients] = await Promise.all([
+        this.getDevices('gateway'),
+        this.getActiveClients().catch(() => []),
+      ]);
+      const gw = devices[0];
+      if (!gw) {
+        return undefined;
+      }
+
+      const totalRxRate = clients.reduce((sum, c) => sum + ((c as { downRate?: number }).downRate ?? c.activity ?? 0), 0);
+      const totalTxRate = clients.reduce((sum, c) => sum + ((c as { upRate?: number }).upRate ?? Math.round((c.activity ?? 0) * 0.25)), 0);
+
       return {
-        gatewayModel: 'ER7206 v2.20',
+        gatewayModel: gw.model || 'Omada SDN Gateway',
         primaryWan: {
           port: 1,
-          name: 'WAN 1 (Starlink Primary)',
+          name: 'WAN 1 (Primary Uplink)',
           type: 'wan',
-          online: true,
-          ip: '100.78.120.44',
-          gateway: '192.168.1.1',
+          online: gw.status === 14,
+          ip: gw.ip,
+          gateway: gw.ip,
           dns: ['1.1.1.1', '8.8.8.8'],
           proto: 'DHCP',
           latencyMs: 24,
           packetLossPercent: 0.0,
-          rxRate: 1450000,
-          txRate: 320000,
-          uptime: 864200,
-          providerName: 'Starlink Gen 3 Satellite',
+          rxRate: totalRxRate,
+          txRate: totalTxRate,
+          uptime: gw.uptime || 0,
+          providerName: 'Managed Gateway Uplink',
           isPrimary: true,
         },
-        backupWan: {
-          port: 2,
-          name: 'WAN 2 (LTE Failover Backup)',
-          type: 'wan/lan',
-          online: true,
-          ip: '192.168.8.100',
-          gateway: '192.168.8.1',
-          dns: ['9.9.9.9', '1.0.0.1'],
-          proto: 'DHCP',
-          latencyMs: 42,
-          packetLossPercent: 0.0,
-          rxRate: 1200,
-          txRate: 800,
-          uptime: 864200,
-          providerName: 'Cellular LTE Backup',
-          isPrimary: false,
-        },
         dualWanMode: 'Failover',
-        overallUptimePercent: 99.98,
+        overallUptimePercent: 100,
       };
     } catch {
-      return {
-        gatewayModel: 'ER7206 v2.20',
-        primaryWan: {
-          port: 1,
-          name: 'WAN 1 (Starlink Primary)',
-          type: 'wan',
-          online: true,
-          ip: '100.78.120.44',
-          gateway: '192.168.1.1',
-          dns: ['1.1.1.1', '8.8.8.8'],
-          proto: 'DHCP',
-          latencyMs: 24,
-          packetLossPercent: 0.0,
-          rxRate: 1450000,
-          txRate: 320000,
-          uptime: 864200,
-          providerName: 'Starlink Satellite',
-          isPrimary: true,
-        },
-        dualWanMode: 'Failover',
-        overallUptimePercent: 99.98,
-      };
+      return undefined;
     }
   }
 
@@ -942,59 +912,10 @@ export class OmadaClient {
           detail: e.extra || e.content || '',
         }));
       }
+      return [];
     } catch {
-      // Fallback
+      return [];
     }
-
-    const now = Date.now();
-    return [
-      {
-        id: 'evt-1',
-        timestamp: new Date(now - 2 * 60 * 1000).toISOString(),
-        type: 'roam',
-        severity: 'info',
-        title: '802.11k/v Fast Roaming Success',
-        detail: 'iPhone 15 Pro Max roamed from Upstairs West EAP670 ➔ Main Center EAP670 (RSSI: -58 dBm, 5GHz Ch 104).',
-        clientName: 'iPhone 15 Pro Max',
-        apName: 'Main Center EAP670',
-      },
-      {
-        id: 'evt-2',
-        timestamp: new Date(now - 8 * 60 * 1000).toISOString(),
-        type: 'dhcp',
-        severity: 'success',
-        title: 'New DHCP Lease Assigned',
-        detail: 'Device ESP32-SmartPlug-04 joined VLAN 20 (Smart Home) with IP 192.168.120.72 via TheFarmIot SSID.',
-        clientName: 'ESP32-SmartPlug-04',
-        vlanId: 20,
-      },
-      {
-        id: 'evt-3',
-        timestamp: new Date(now - 19 * 60 * 1000).toISOString(),
-        type: 'alert',
-        severity: 'warning',
-        title: 'High Bandwidth Consumer Flagged',
-        detail: 'MacBook Pro downloaded 4.2 GB in 15 minutes (consuming 38% of total site throughput).',
-        clientName: 'MacBook Pro',
-      },
-      {
-        id: 'evt-4',
-        timestamp: new Date(now - 45 * 60 * 1000).toISOString(),
-        type: 'poe',
-        severity: 'info',
-        title: 'PoE Power Negotiation Confirmed',
-        detail: 'Backbone SG2218P Port 9 allocated 14.2W (802.3at Type 2) to Main Center EAP670.',
-        apName: 'Main Center EAP670',
-      },
-      {
-        id: 'evt-5',
-        timestamp: new Date(now - 75 * 60 * 1000).toISOString(),
-        type: 'system',
-        severity: 'success',
-        title: 'Dual-WAN Gateway Uplink Healthy',
-        detail: 'WAN 1 (Starlink) latency benchmarked at 24 ms with 0.0% packet drop rate.',
-      },
-    ];
   }
 }
 

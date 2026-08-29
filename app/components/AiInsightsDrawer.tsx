@@ -1,22 +1,45 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AiInsightRecord } from '@/types/reports';
+
+export interface BackgroundAuditState {
+  status: 'idle' | 'running' | 'completed' | 'error';
+  engineType: 'NLG_ALGORITHMIC' | 'DEEPSEEK_AGENT';
+  startTime: number;
+  result?: AiInsightRecord;
+  error?: string;
+  isUnread?: boolean;
+}
 
 interface AiInsightsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  backgroundAudit?: BackgroundAuditState;
+  onTriggerNlgAudit?: () => void;
+  onTriggerAgentAudit?: () => void;
 }
 
-export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
+export function AiInsightsDrawer({
+  isOpen,
+  onClose,
+  backgroundAudit,
+  onTriggerNlgAudit,
+  onTriggerAgentAudit,
+}: AiInsightsDrawerProps) {
   const [history, setHistory] = useState<AiInsightRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [runningAudit, setRunningAudit] = useState<boolean>(false);
+  const [localNlgRunning, setLocalNlgRunning] = useState<boolean>(false);
+  const [localAgentRunning, setLocalAgentRunning] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'persisting' | 'resolved' | 'new' | 'suggestions'>('persisting');
   const [feedbackMap, setFeedbackMap] = useState<Record<string, { state: 'HELPFUL' | 'EXPECTED_IOT' | 'SUPPRESSED'; note?: string }>>({});
   const [adminNote, setAdminNote] = useState<string>('');
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+  const [showThinking, setShowThinking] = useState(false);
+
+  const isNlgRunning = localNlgRunning || (backgroundAudit?.status === 'running' && backgroundAudit.engineType === 'NLG_ALGORITHMIC');
+  const isAgentRunning = localAgentRunning || (backgroundAudit?.status === 'running' && backgroundAudit.engineType === 'DEEPSEEK_AGENT');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -31,7 +54,11 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
         }
         const data = await res.json();
         if (isMounted) {
-          setHistory(data.history || []);
+          setHistory((prev) => {
+            const fetched: AiInsightRecord[] = data.history || [];
+            const unsynced = prev.filter((p) => !fetched.some((f) => f.id === p.id));
+            return [...unsynced, ...fetched];
+          });
           setLoading(false);
         }
       } catch (err: unknown) {
@@ -49,25 +76,76 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
     };
   }, [isOpen]);
 
-  const handleRunAudit = async () => {
-    setRunningAudit(true);
+  const effectiveHistory = useMemo(() => {
+    if (backgroundAudit?.status === 'completed' && backgroundAudit.result) {
+      if (!history.some((h) => h.id === backgroundAudit.result?.id)) {
+        return [backgroundAudit.result, ...history];
+      }
+    }
+    return history;
+  }, [backgroundAudit, history]);
+
+  const activeToast =
+    feedbackToast ||
+    (backgroundAudit?.status === 'completed' && backgroundAudit.result
+      ? backgroundAudit.engineType === 'DEEPSEEK_AGENT'
+        ? '🧠 DeepSeek-R1 Neural Agent completed real generative reasoning!'
+        : '⚡ Deterministic NLG audit completed (Edge Heuristics Engine)!'
+      : null);
+
+  const activeError = error || (backgroundAudit?.status === 'error' ? backgroundAudit.error : null);
+
+  const handleRunNlgAudit = async () => {
+    if (onTriggerNlgAudit) {
+      onTriggerNlgAudit();
+      return;
+    }
+
+    setLocalNlgRunning(true);
     setError(null);
     try {
       const res = await fetch('/api/admin/insights/run', { method: 'POST' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Failed to execute comparative audit');
+        throw new Error(body.error || 'Failed to execute deterministic NLG audit');
       }
       const data = await res.json();
       if (data.insight) {
         setHistory((prev) => [data.insight, ...prev]);
-        setFeedbackToast('Comparative AI audit completed and narration synthesized!');
+        setFeedbackToast('⚡ Deterministic NLG audit completed (Edge Heuristics Engine)!');
         setTimeout(() => setFeedbackToast(null), 3500);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to run AI audit.');
+      setError(err instanceof Error ? err.message : 'Failed to run NLG audit.');
     } finally {
-      setRunningAudit(false);
+      setLocalNlgRunning(false);
+    }
+  };
+
+  const handleRunLlmAgentAudit = async () => {
+    if (onTriggerAgentAudit) {
+      onTriggerAgentAudit();
+      return;
+    }
+
+    setLocalAgentRunning(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/insights/agent', { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to execute DeepSeek LLM Agent inference (Is Ollama running?)');
+      }
+      const data = await res.json();
+      if (data.insight) {
+        setHistory((prev) => [data.insight, ...prev]);
+        setFeedbackToast('🧠 DeepSeek-R1 Neural Agent completed real generative reasoning!');
+        setTimeout(() => setFeedbackToast(null), 4000);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to run DeepSeek LLM Agent audit. Ensure Ollama is active.');
+    } finally {
+      setLocalAgentRunning(false);
     }
   };
 
@@ -98,7 +176,7 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
 
   if (!isOpen) return null;
 
-  const latest = history[0] || null;
+  const latest = effectiveHistory[0] || null;
 
   const deltaSign = (latest?.scoreDelta ?? 0) > 0 ? `+${latest?.scoreDelta}` : `${latest?.scoreDelta ?? 0}`;
   const trendBadge =
@@ -121,10 +199,10 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
     );
 
   return (
-    <div
+    <aside
       role="dialog"
       aria-modal="true"
-      aria-label="Iterative AI Insights Engine"
+      aria-label="Continuous AI & NLG Engine"
       className="fixed inset-0 z-50 overflow-hidden bg-slate-950/80 backdrop-blur-sm animate-fade-in"
     >
       <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
@@ -137,69 +215,117 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
               </div>
               <div>
                 <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  Iterative AI Insights Engine
+                  Continuous AI & NLG Engine
                   <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-950/80 text-purple-400 border border-purple-800/60">
-                    CONTINUOUS MEMORY
+                    DUAL INSIGHT MODE
                   </span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Stateful network health tracking & comparative delta diagnostics
+                  Deterministic Edge Heuristics & Local DeepSeek-R1 Neural Agent
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
-              aria-label="Close drawer"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              {(isNlgRunning || isAgentRunning) && (
+                <button
+                  onClick={onClose}
+                  className="px-2.5 py-1 rounded-xl bg-purple-950/90 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Minimize and continue running in background"
+                >
+                  <span>⬇️</span>
+                  <span>Push to Background</span>
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Close drawer"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Toast Notification */}
-          {feedbackToast && (
+          {activeToast && (
             <div className="mx-6 mt-4 p-3 rounded-xl bg-cyan-950 border border-cyan-700 text-cyan-300 text-xs font-mono font-bold shadow-lg animate-in fade-in duration-150">
-              {feedbackToast}
+              {activeToast}
             </div>
           )}
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Run New Audit Action Button */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-900/30 to-cyan-900/30 border border-purple-800/40 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-semibold text-slate-200">Run Comparative Health Inspection</div>
-                <div className="text-[11px] text-slate-400">
-                  Evaluates live telemetry against historical baseline to update trajectory.
-                </div>
-              </div>
-              <button
-                onClick={handleRunAudit}
-                disabled={runningAudit}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white text-xs font-bold shadow-lg shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center space-x-2 cursor-pointer"
-              >
-                {runningAudit ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Analyzing...</span>
-                  </>
-                ) : (
-                  <>
+            {/* Dual Mode Action Execution Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Option 1: Deterministic NLG Audit */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-900/50 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300 font-mono">
                     <span>⚡</span>
-                    <span>Trigger AI Audit</span>
-                  </>
-                )}
-              </button>
+                    <span>DETERMINISTIC NLG</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Zero-latency edge rules: RSSI thresholds, IoT VLAN 20 matching & math scoring.
+                  </p>
+                </div>
+                <button
+                  onClick={handleRunNlgAudit}
+                  disabled={isNlgRunning || isAgentRunning}
+                  className="w-full py-2 px-3 rounded-xl bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold font-mono transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isNlgRunning ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                      <span>Auditing Rules...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚡</span>
+                      <span>Trigger NLG Audit</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Option 2: Real DeepSeek-R1 Neural Agent */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/60 to-slate-950 border border-purple-700/60 flex flex-col justify-between space-y-3 shadow-lg shadow-purple-950/30">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300 font-mono">
+                    <span>🧠</span>
+                    <span>DEEPSEEK-R1 AGENT</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Real local neural inference via Ollama (<code>deepseek-r1:7b</code>) with Chain-of-Thought.
+                  </p>
+                </div>
+                <button
+                  onClick={handleRunLlmAgentAudit}
+                  disabled={isNlgRunning || isAgentRunning}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold font-mono transition-all shadow-md shadow-purple-500/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isAgentRunning ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Agent Thinking...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🧠</span>
+                      <span>Run DeepSeek Agent</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
-            {error && (
+            {activeError && (
               <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
-                ⚠️ {error}
+                ⚠️ {activeError}
               </div>
             )}
 
-            {loading ? (
+            {loading && !latest ? (
               <div className="py-20 flex flex-col items-center justify-center space-y-3">
                 <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
                 <p className="text-xs text-slate-400 font-mono">Retrieving AI audit trajectory memory...</p>
@@ -209,7 +335,7 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
                 <div className="text-3xl">📋</div>
                 <div className="text-sm font-semibold text-slate-300">No Prior Audit Baseline in Memory</div>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Click &quot;Trigger AI Audit&quot; above to establish the initial baseline benchmark.
+                  Click &quot;Trigger NLG Audit&quot; or &quot;Run DeepSeek Agent&quot; above to establish the initial baseline benchmark.
                 </p>
               </div>
             ) : (
@@ -227,338 +353,357 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
                     <div>{trendBadge}</div>
                   </div>
 
-                  {/* Visual Audit History Score Sparkline */}
-                  <div>
-                    <div className="text-[10px] text-slate-400 uppercase font-semibold mb-1.5 flex justify-between">
-                      <span>Historical Health Score Trajectory (Last {history.length} Audits)</span>
-                      <span className="text-cyan-400">Newest ➔</span>
-                    </div>
-                    <div className="flex items-end space-x-1.5 h-12 pt-2 border-b border-slate-800">
-                      {[...history].reverse().map((h, idx) => {
-                        const heightPct = Math.max(20, Math.min(100, h.healthScore));
-                        const isLatest = idx === history.length - 1;
-                        const barColor =
-                          h.healthScore >= 90
-                            ? 'bg-emerald-500'
-                            : h.healthScore >= 75
-                            ? 'bg-amber-500'
-                            : 'bg-rose-500';
-
-                        return (
-                          <div
-                            key={h.id}
-                            className="flex-1 flex flex-col items-center group relative h-full justify-end"
-                          >
-                            <div
-                              style={{ height: `${heightPct}%` }}
-                              className={`w-full rounded-t-sm ${barColor} ${
-                                isLatest ? 'ring-2 ring-cyan-400 brightness-110' : 'opacity-70 hover:opacity-100'
-                              } transition-all`}
-                            />
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full mb-1 hidden group-hover:block z-20 px-2 py-1 bg-slate-950 text-slate-100 text-[10px] rounded border border-slate-800 whitespace-nowrap shadow-lg">
-                              Score: {h.healthScore} • {new Date(h.createdAt).toLocaleTimeString()}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  {/* Engine Type Tag */}
+                  <div className="flex items-center justify-between text-xs font-mono pt-2 border-t border-slate-800/80">
+                    <span className="text-slate-400">Diagnostic Engine:</span>
+                    <span className={`px-2.5 py-0.5 rounded-full font-bold ${
+                      latest.engineType === 'DEEPSEEK_AGENT'
+                        ? 'bg-purple-950 text-purple-300 border border-purple-800'
+                        : 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                    }`}>
+                      {latest.engineType === 'DEEPSEEK_AGENT' ? `🧠 Neural LLM Agent (${latest.llmModel || 'deepseek-r1:7b'})` : '⚡ Deterministic NLG'}
+                    </span>
                   </div>
+
+                  {/* DeepSeek Chain-of-Thought Collapsible Reasoning Box */}
+                  {latest.thinkingProcess && (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => setShowThinking(!showThinking)}
+                        className="w-full text-left p-3 rounded-xl bg-purple-950/40 hover:bg-purple-950/70 border border-purple-800/60 text-xs font-mono text-purple-300 transition-colors flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span>💭</span>
+                          <span className="font-bold">DeepSeek-R1 Chain-of-Thought Reasoning Deliberation</span>
+                        </span>
+                        <span className="text-slate-400">{showThinking ? '▲ Hide' : '▼ View Thinking'}</span>
+                      </button>
+
+                      {showThinking && (
+                        <div className="mt-2 p-3.5 rounded-xl bg-slate-950 border border-purple-900/80 text-slate-300 text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto animate-in fade-in duration-150">
+                          {latest.thinkingProcess}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Trajectory History Sparkline Bars */}
+                  {effectiveHistory.length > 1 && (
+                    <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                      <div className="text-[11px] font-mono text-slate-400">AUDIT SCORE TRAJECTORY (PAST {effectiveHistory.length} AUDITS)</div>
+                      <div className="flex items-end space-x-2 h-16 pt-2">
+                        {effectiveHistory.slice(0, 8).reverse().map((audit, idx) => {
+                          const heightPct = Math.max(15, audit.healthScore);
+                          const barColor =
+                            audit.healthScore >= 90
+                              ? 'bg-emerald-500'
+                              : audit.healthScore >= 75
+                              ? 'bg-cyan-500'
+                              : audit.healthScore >= 60
+                              ? 'bg-amber-500'
+                              : 'bg-rose-500';
+
+                          return (
+                            <div key={audit.id || idx} className="flex-1 flex flex-col items-center gap-1">
+                              <span className="text-[10px] font-mono text-slate-400">{audit.healthScore}</span>
+                              <div
+                                className={`w-full rounded-t-md transition-all duration-500 ${barColor}`}
+                                style={{ height: `${heightPct}%` }}
+                                title={`Audit at ${new Date(audit.createdAt).toLocaleTimeString()}: Score ${audit.healthScore}`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* 3-Part Comparative AI Audit Narration */}
-                <div className="p-5 rounded-2xl bg-gradient-to-b from-slate-950 to-slate-900/90 border border-purple-800/50 shadow-lg space-y-4">
-                  <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                    <span className="text-lg">🎙️</span>
-                    <h3 className="text-xs font-bold text-purple-300 uppercase tracking-wider font-mono">
+                {/* Dynamic 3-Part Comparative Executive Narrative */}
+                <div className="p-4 rounded-2xl bg-slate-950/90 border border-purple-900/60 shadow-lg space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 text-[10px] font-mono font-bold border border-purple-800">
                       AI Audit Comparative Narration
-                    </h3>
+                    </span>
+                    <span className="text-xs font-semibold text-slate-300 font-mono">
+                      Stateful Trajectory Analysis
+                    </span>
                   </div>
 
-                  {/* 1. Historical Baseline Context */}
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-cyan-400 font-mono">
-                      <span>🕒</span>
-                      <span>HOW THINGS HAVE BEEN (HISTORICAL BASELINE)</span>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed pl-5 font-sans">
-                      {latest.narration?.historyContext ||
-                        `Historical estate baseline maintained across previous audit cycles. Tracking metrics across connected clients and physical nodes.`}
+                  <div className="space-y-2 text-xs font-mono leading-relaxed text-slate-300">
+                    <p>
+                      <strong className="text-purple-300">1. HOW THINGS HAVE BEEN (PAST CONTEXT): </strong>
+                      {latest.narration?.historyContext || 'No previous baseline on record.'}
                     </p>
-                  </div>
-
-                  {/* 2. What Changed / Comparative Delta */}
-                  <div className="space-y-1 pt-2 border-t border-slate-800/60">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-400 font-mono">
-                      <span>🔄</span>
-                      <span>WHAT HAS CHANGED (DELTA SINCE LAST AUDIT)</span>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed pl-5 font-sans">
-                      {latest.narration?.deltaChanges ||
-                        `Comparative Delta: Evaluated live telemetry changes against immediate predecessor audit.`}
+                    <p>
+                      <strong className="text-cyan-300">2. WHAT HAS CHANGED (DELTA ANOMALIES): </strong>
+                      {latest.narration?.deltaChanges || 'Zero state modifications detected.'}
                     </p>
-                  </div>
-
-                  {/* 3. Current Status & Posture */}
-                  <div className="space-y-1 pt-2 border-t border-slate-800/60">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 font-mono">
-                      <span>🌐</span>
-                      <span>CURRENT OPERATIONAL POSTURE</span>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed pl-5 font-sans">
+                    <p>
+                      <strong className="text-emerald-300">3. CURRENT OPERATIONAL POSTURE: </strong>
                       {latest.narration?.currentStatus || latest.executiveSummary}
                     </p>
                   </div>
                 </div>
 
-                {/* Sub-Tabs for Findings */}
-                <div className="flex border-b border-slate-800 space-x-1 text-xs">
+                {/* Tab Navigation */}
+                <div className="flex space-x-1 border-b border-slate-800">
                   <button
                     onClick={() => setActiveTab('persisting')}
-                    className={`px-3 py-2 font-semibold border-b-2 transition-colors cursor-pointer ${
+                    className={`pb-2 px-3 text-xs font-mono font-semibold transition-colors cursor-pointer ${
                       activeTab === 'persisting'
-                        ? 'border-amber-500 text-amber-400'
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                        ? 'text-amber-400 border-b-2 border-amber-400'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    🟡 Persisting ({latest.persistingIssues?.length || 0})
+                    Persisting ({latest.persistingIssues.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('resolved')}
-                    className={`px-3 py-2 font-semibold border-b-2 transition-colors cursor-pointer ${
+                    className={`pb-2 px-3 text-xs font-mono font-semibold transition-colors cursor-pointer ${
                       activeTab === 'resolved'
-                        ? 'border-emerald-500 text-emerald-400'
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                        ? 'text-emerald-400 border-b-2 border-emerald-400'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    🟢 Resolved ({latest.resolvedIssues?.length || 0})
+                    Resolved ({latest.resolvedIssues.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('new')}
-                    className={`px-3 py-2 font-semibold border-b-2 transition-colors cursor-pointer ${
+                    className={`pb-2 px-3 text-xs font-mono font-semibold transition-colors cursor-pointer ${
                       activeTab === 'new'
-                        ? 'border-rose-500 text-rose-400'
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                        ? 'text-rose-400 border-b-2 border-rose-400'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    🔴 New ({latest.newIssues?.length || 0})
+                    New ({latest.newIssues.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('suggestions')}
-                    className={`px-3 py-2 font-semibold border-b-2 transition-colors cursor-pointer ${
+                    className={`pb-2 px-3 text-xs font-mono font-semibold transition-colors cursor-pointer ${
                       activeTab === 'suggestions'
-                        ? 'border-purple-500 text-purple-400'
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                        ? 'text-cyan-400 border-b-2 border-cyan-400'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    💡 Suggestions ({latest.actionableSuggestions?.length || 0})
+                    Suggestions ({latest.actionableSuggestions.length})
                   </button>
                 </div>
 
-                {/* Tab 1: Persisting Chronic Issues */}
+                {/* Tab Content 1: Persisting Issues */}
                 {activeTab === 'persisting' && (
-                  <div className="space-y-3">
-                    {latest.persistingIssues && latest.persistingIssues.length > 0 ? (
-                      latest.persistingIssues.map((issue) => {
-                        const feedback = feedbackMap[issue.id];
-                        return (
-                          <div
-                            key={issue.id}
-                            className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 space-y-2"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-amber-300">{issue.title}</span>
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-300 border border-amber-700">
-                                Active for {issue.persistedAuditCount} audits
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-300">{issue.description}</p>
-                            
-                            {/* Feedback Controls */}
-                            <div className="pt-2 border-t border-amber-900/40 flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                Observed: {new Date(issue.firstObservedAt).toLocaleTimeString()}
-                              </span>
-
-                              <div className="flex items-center gap-1.5">
-                                {feedback ? (
-                                  <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-                                    ✓ Tuned: {feedback.state}
-                                  </span>
-                                ) : (
-                                  <>
-                                    <button
-                                      onClick={() => handleFeedback(issue.id, 'EXPECTED_IOT')}
-                                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-cyan-300 hover:text-cyan-200 transition-colors cursor-pointer"
-                                      title="Mark as expected IoT behavior (e.g. VLAN 20 smart devices)"
-                                    >
-                                      🏷️ Expected IoT
-                                    </button>
-                                    <button
-                                      onClick={() => handleFeedback(issue.id, 'HELPFUL')}
-                                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-colors cursor-pointer"
-                                    >
-                                      👍 Helpful
-                                    </button>
-                                    <button
-                                      onClick={() => handleFeedback(issue.id, 'SUPPRESSED')}
-                                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                                    >
-                                      🔇 Suppress
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="py-8 text-center text-xs text-slate-500">
-                        No chronic or persisting issues detected across audit cycles. ✅
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    {latest.persistingIssues.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-slate-950/40 text-center text-xs text-slate-500 font-mono">
+                        No chronic or persisting issues detected across inspection cycles.
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Tab 2: Resolved Issues */}
-                {activeTab === 'resolved' && (
-                  <div className="space-y-3">
-                    {latest.resolvedIssues && latest.resolvedIssues.length > 0 ? (
-                      latest.resolvedIssues.map((issue) => (
+                    ) : (
+                      latest.persistingIssues.map((issue) => (
                         <div
                           key={issue.id}
-                          className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40 space-y-1"
+                          className="p-4 rounded-xl bg-slate-950/80 border border-amber-900/60 space-y-2"
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-emerald-300">✅ {issue.title}</span>
-                            <span className="text-[10px] font-mono text-emerald-400">RESOLVED</span>
-                          </div>
-                          <p className="text-xs text-slate-300">{issue.description}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="py-8 text-center text-xs text-slate-500">
-                        No resolved issues in this specific cycle.
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Tab 3: New Anomalies */}
-                {activeTab === 'new' && (
-                  <div className="space-y-3">
-                    {latest.newIssues && latest.newIssues.length > 0 ? (
-                      latest.newIssues.map((issue) => {
-                        const feedback = feedbackMap[issue.id];
-                        return (
-                          <div
-                            key={issue.id}
-                            className={`p-3.5 rounded-xl border space-y-2 ${
-                              issue.severity === 'INFO'
-                                ? 'bg-cyan-950/20 border-cyan-800/40'
-                                : 'bg-rose-950/20 border-rose-800/40'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className={`text-xs font-bold ${issue.severity === 'INFO' ? 'text-cyan-300' : 'text-rose-300'}`}>
-                                {issue.severity === 'INFO' ? 'ℹ️' : '⚠️'} {issue.title}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 text-[10px] font-mono font-bold border border-amber-800">
+                                {issue.category}
                               </span>
-                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${issue.severity === 'INFO' ? 'bg-cyan-900/60 text-cyan-300' : 'bg-rose-900/60 text-rose-300'}`}>
-                                {issue.severity}
-                              </span>
+                              <span className="text-xs font-bold text-slate-200 font-mono">{issue.title}</span>
                             </div>
-                            <p className="text-xs text-slate-300">{issue.description}</p>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-800">
+                              PERSISTING ({issue.persistedAuditCount || 1}x)
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 font-mono">{issue.description}</p>
 
-                            {/* Feedback Controls */}
-                            <div className="pt-2 border-t border-slate-800/60 flex items-center justify-end gap-1.5">
-                              {feedback ? (
-                                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
-                                  ✓ Tuned: {feedback.state}
+                          {/* Admin Feedback Actions */}
+                          <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 text-[11px] font-mono">
+                            <span className="text-slate-500">Tuning Feedback:</span>
+                            <div className="flex space-x-1.5">
+                              {feedbackMap[issue.id]?.state ? (
+                                <span className="text-emerald-400 font-semibold">
+                                  ✓ Tuned: {feedbackMap[issue.id].state}
                                 </span>
                               ) : (
                                 <>
                                   <button
-                                    onClick={() => handleFeedback(issue.id, 'EXPECTED_IOT')}
-                                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-cyan-300 hover:text-cyan-200 transition-colors cursor-pointer"
-                                  >
-                                    🏷️ Expected IoT
-                                  </button>
-                                  <button
                                     onClick={() => handleFeedback(issue.id, 'HELPFUL')}
-                                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                    className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 cursor-pointer"
                                   >
                                     👍 Helpful
+                                  </button>
+                                  <button
+                                    onClick={() => handleFeedback(issue.id, 'EXPECTED_IOT')}
+                                    className="px-2 py-0.5 rounded bg-purple-950 hover:bg-purple-900 border border-purple-800 text-purple-300 cursor-pointer"
+                                    title="Acknowledge this device is an IoT component properly segregated on VLAN 20"
+                                  >
+                                    🏡 Expected IoT
+                                  </button>
+                                  <button
+                                    onClick={() => handleFeedback(issue.id, 'SUPPRESSED')}
+                                    className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 cursor-pointer"
+                                  >
+                                    🔕 Suppress
                                   </button>
                                 </>
                               )}
                             </div>
                           </div>
-                        );
-                      })
-                    ) : (
-                      <div className="py-8 text-center text-xs text-slate-500">
-                        No new anomalies surfaced in this audit run. ✅
-                      </div>
+                        </div>
+                      ))
                     )}
                   </div>
                 )}
 
-                {/* Tab 4: Actionable Suggestions */}
-                {activeTab === 'suggestions' && (
-                  <div className="space-y-3">
-                    {latest.actionableSuggestions && latest.actionableSuggestions.length > 0 ? (
-                      latest.actionableSuggestions.map((sug) => (
+                {/* Tab Content 2: Resolved Issues */}
+                {activeTab === 'resolved' && (
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    {latest.resolvedIssues.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-slate-950/40 text-center text-xs text-slate-500 font-mono">
+                        No resolved issues in this specific cycle.
+                      </div>
+                    ) : (
+                      latest.resolvedIssues.map((issue) => (
                         <div
-                          key={sug.id}
-                          className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-800/40 space-y-2"
+                          key={issue.id}
+                          className="p-4 rounded-xl bg-slate-950/80 border border-emerald-900/60 space-y-1.5"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-purple-300">{sug.title}</span>
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                sug.priority === 'HIGH'
-                                  ? 'bg-rose-900/60 text-rose-300 border border-rose-700'
-                                  : sug.priority === 'MEDIUM'
-                                  ? 'bg-amber-900/60 text-amber-300 border border-amber-700'
-                                  : 'bg-slate-800 text-slate-300'
-                              }`}
-                            >
-                              {sug.priority} PRIORITY
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 text-[10px] font-mono font-bold border border-emerald-800">
+                                RESOLVED
+                              </span>
+                              <span className="text-xs font-bold text-emerald-200 font-mono">{issue.title}</span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-400 font-mono">{issue.description}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* Tab Content 3: New Issues */}
+                {activeTab === 'new' && (
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    {latest.newIssues.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-slate-950/40 text-center text-xs text-slate-500 font-mono">
+                        No new anomalies surfaced in this audit run.
+                      </div>
+                    ) : (
+                      latest.newIssues.map((issue) => (
+                        <div
+                          key={issue.id}
+                          className="p-4 rounded-xl bg-slate-950/80 border border-rose-900/60 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                issue.severity === 'CRITICAL'
+                                  ? 'bg-rose-950 text-rose-300 border-rose-800'
+                                  : issue.severity === 'WARNING'
+                                  ? 'bg-amber-950 text-amber-300 border-amber-800'
+                                  : 'bg-sky-950 text-sky-300 border-sky-800'
+                              }`}>
+                                {issue.severity}
+                              </span>
+                              <span className="text-xs font-bold text-slate-200 font-mono">{issue.title}</span>
+                            </div>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-950/80 text-rose-400 border border-rose-800">
+                              NEW
                             </span>
                           </div>
-                          <div className="text-xs text-slate-200">
-                            <span className="font-semibold text-cyan-400">Action:</span> {sug.action}
-                          </div>
-                          <div className="text-[11px] text-slate-400">
-                            <span className="font-semibold text-slate-300">Impact:</span> {sug.expectedImpact}
+                          <p className="text-xs text-slate-400 font-mono">{issue.description}</p>
+
+                          {/* Admin Feedback Actions */}
+                          <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 text-[11px] font-mono">
+                            <span className="text-slate-500">Tuning Feedback:</span>
+                            <div className="flex space-x-1.5">
+                              {feedbackMap[issue.id]?.state ? (
+                                <span className="text-emerald-400 font-semibold">
+                                  ✓ Tuned: {feedbackMap[issue.id].state}
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleFeedback(issue.id, 'HELPFUL')}
+                                    className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 cursor-pointer"
+                                  >
+                                    👍 Helpful
+                                  </button>
+                                  <button
+                                    onClick={() => handleFeedback(issue.id, 'EXPECTED_IOT')}
+                                    className="px-2 py-0.5 rounded bg-purple-950 hover:bg-purple-900 border border-purple-800 text-purple-300 cursor-pointer"
+                                    title="Acknowledge this device is an IoT component properly segregated on VLAN 20"
+                                  >
+                                    🏡 Expected IoT
+                                  </button>
+                                  <button
+                                    onClick={() => handleFeedback(issue.id, 'SUPPRESSED')}
+                                    className="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 cursor-pointer"
+                                  >
+                                    🔕 Suppress
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
-                    ) : (
-                      <div className="py-8 text-center text-xs text-slate-500">No suggestions available.</div>
                     )}
                   </div>
                 )}
 
-                {/* Admin Feedback / Context Tuning Box */}
-                <form onSubmit={handleSaveAdminNote} className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-cyan-400 font-mono flex items-center gap-1.5">
-                      <span>⚙️</span> Admin AI Tuning & Domain Context
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">Auto-saves to memory</span>
+                {/* Tab Content 4: Actionable Remediation Suggestions */}
+                {activeTab === 'suggestions' && (
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    {latest.actionableSuggestions.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-slate-950/40 text-center text-xs text-slate-500 font-mono">
+                        No suggestions available. Network is operating within nominal thresholds.
+                      </div>
+                    ) : (
+                      latest.actionableSuggestions.map((sug) => (
+                        <div
+                          key={sug.id}
+                          className="p-4 rounded-xl bg-slate-950/80 border border-cyan-900/60 space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-cyan-300 font-mono">{sug.title}</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                              sug.priority === 'HIGH'
+                                ? 'bg-rose-950 text-rose-300 border-rose-800'
+                                : sug.priority === 'MEDIUM'
+                                ? 'bg-amber-950 text-amber-300 border-amber-800'
+                                : 'bg-slate-900 text-slate-300 border-slate-700'
+                            }`}>
+                              {sug.priority} PRIORITY
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300 font-mono">
+                            <strong className="text-slate-400">Action:</strong> {sug.action}
+                          </p>
+                          <p className="text-[11px] text-emerald-400/90 font-mono">
+                            <strong>Impact:</strong> {sug.expectedImpact}
+                          </p>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <p className="text-[11px] text-slate-400 font-sans">
-                    Inform the AI of specific subnet roles (e.g. &ldquo;VLAN 20 is dedicated to IoT smart plugs & locks&rdquo;) to refine future audit narrations.
-                  </p>
+                )}
+
+                {/* Custom Admin Feedback Tuning Form */}
+                <form onSubmit={handleSaveAdminNote} className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+                  <label htmlFor="admin-note-input" className="block text-xs font-bold text-slate-300 font-mono">
+                    Add Environmental Context / Rule Tuning (e.g. &quot;All ESP32 devices on VLAN 20 are farm sensors&quot;)
+                  </label>
                   <div className="flex gap-2">
                     <input
+                      id="admin-note-input"
                       type="text"
                       value={adminNote}
                       onChange={(e) => setAdminNote(e.target.value)}
-                      placeholder="e.g., VLAN 20 has 2.4 GHz-only smart home gear; do not flag as congested."
-                      className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                      placeholder="e.g. VLAN 20 has 2.4 GHz-only smart home gear, suppress RSSI warnings"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
                     />
                     <button
                       type="submit"
@@ -574,7 +719,6 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
           </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }
-

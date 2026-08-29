@@ -230,6 +230,79 @@ describe('Iterative AI Insights Engine (lib/ai/insights.ts)', () => {
     expect(insight.narration?.fullNarrative).toContain(insight.narration?.currentStatus);
   });
 
+  it('executes runDeepSeekAgentInsight with Ollama neural generation and extracts Chain-of-Thought', async () => {
+    const { runDeepSeekAgentInsight } = await import('@/lib/ai/insights');
+    vi.spyOn(dbQueries, 'getRecentAiInsights').mockResolvedValue([]);
+    vi.spyOn(dbQueries, 'saveAiInsight').mockImplementation(async (data: any) => ({
+      ...data,
+      id: 'insight-deepseek-1',
+      createdAt: '2026-08-28T12:00:00Z',
+    }));
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/generate')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            model: 'deepseek-r1:7b',
+            response: `<think>
+Analyzing clients: 2 clients connected, 1 on 5GHz, 1 on 2.4GHz IoT.
+Everything is optimal.
+</think>
+{
+  "healthScore": 95,
+  "trendDirection": "IMPROVED",
+  "executiveSummary": "DeepSeek-R1 verified healthy network conditions.",
+  "narration": {
+    "historyContext": "Baseline is stable.",
+    "deltaChanges": "+1 device joined IoT VLAN.",
+    "currentStatus": "Optimal posture."
+  },
+  "issues": [
+    {
+      "id": "deepseek-iss-1",
+      "category": "RF_SIGNAL",
+      "severity": "INFO",
+      "title": "Clean Spectrum",
+      "description": "5GHz is cleanly utilized."
+    }
+  ],
+  "suggestions": [
+    {
+      "id": "deepseek-sug-1",
+      "priority": "LOW",
+      "title": "Maintain Baseline",
+      "action": "No immediate remediation required.",
+      "expectedImpact": "Continued high throughput."
+    }
+  ]
+}`,
+          }),
+        });
+      }
+      return Promise.reject(new Error('Unknown url'));
+    });
+
+    const mockClient = {
+      getNetworkStatus: vi.fn().mockResolvedValue({ siteName: 'The Farm' }),
+      getActiveClients: vi.fn().mockResolvedValue([
+        { mac: 'AA:11', name: 'Workstation', wireless: true, channel: 36 },
+      ]),
+      getDevices: vi.fn().mockResolvedValue([{ mac: 'AP-1', name: 'AP-1', type: 'ap', status: 1 }]),
+      getLanNetworks: vi.fn().mockResolvedValue([{ id: 'net-20', name: 'IoT', vlan: 20 }]),
+      getSsids: vi.fn().mockResolvedValue([{ id: 's1', name: 'TheFarmIot', bandText: '2.4G' }]),
+    };
+
+    const insight = await runDeepSeekAgentInsight('user-admin', mockClient as any);
+
+    expect(insight.engineType).toBe('DEEPSEEK_AGENT');
+    expect(insight.llmModel).toBe('deepseek-r1:7b');
+    expect(insight.thinkingProcess).toContain('Analyzing clients');
+    expect(insight.healthScore).toBe(95);
+    expect(insight.executiveSummary).toContain('DeepSeek-R1 verified');
+    expect(insight.narration?.currentStatus).toBe('Optimal posture.');
+  });
+
   it('tests isIotClient helper directly across VLANs, SSIDs, and vendor keywords', async () => {
     const { isIotClient } = await import('@/lib/ai/insights');
     const networks = [

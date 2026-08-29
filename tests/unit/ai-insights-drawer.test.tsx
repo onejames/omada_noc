@@ -2,9 +2,10 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AiInsightsDrawer } from '@/app/components/AiInsightsDrawer';
+import { AiInsightRecord } from '@/types/reports';
 
 describe('AiInsightsDrawer Component', () => {
-  const mockHistory = [
+  const mockHistory: AiInsightRecord[] = [
     {
       id: 'ins-1',
       createdAt: '2026-08-28T12:00:00Z',
@@ -12,7 +13,7 @@ describe('AiInsightsDrawer Component', () => {
       healthScore: 92,
       previousScore: 85,
       scoreDelta: 7,
-      trendDirection: 'IMPROVED',
+      trendDirection: 'IMPROVED' as const,
       executiveSummary: 'Network health has improved (+7%).',
       resolvedIssues: [
         {
@@ -110,7 +111,7 @@ describe('AiInsightsDrawer Component', () => {
     expect(screen.getByText(/Retrieving AI audit trajectory/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText('Iterative AI Insights Engine')).toBeInTheDocument();
+      expect(screen.getByText('Continuous AI & NLG Engine')).toBeInTheDocument();
     });
 
     expect(screen.getAllByText(/IMPROVED/i).length).toBeGreaterThanOrEqual(1);
@@ -132,8 +133,8 @@ describe('AiInsightsDrawer Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /Persisting \(1\)/i }));
     expect(screen.getByText('Weak RSSI Device')).toBeInTheDocument();
 
-    // Trigger AI audit button
-    const triggerBtn = screen.getByRole('button', { name: /Trigger AI Audit/i });
+    // Trigger NLG audit button
+    const triggerBtn = screen.getByRole('button', { name: /Trigger NLG Audit/i });
     fireEvent.click(triggerBtn);
 
     await waitFor(() => {
@@ -199,10 +200,10 @@ describe('AiInsightsDrawer Component', () => {
     render(<AiInsightsDrawer isOpen={true} onClose={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Iterative AI Insights Engine')).toBeInTheDocument();
+      expect(screen.getByText('Continuous AI & NLG Engine')).toBeInTheDocument();
     });
 
-    const triggerBtn = screen.getByRole('button', { name: /Trigger AI Audit/i });
+    const triggerBtn = screen.getByRole('button', { name: /Trigger NLG Audit/i });
     fireEvent.click(triggerBtn);
 
     await waitFor(() => {
@@ -224,7 +225,7 @@ describe('AiInsightsDrawer Component', () => {
 
     fireEvent.click(triggerBtn);
     await waitFor(() => {
-      expect(screen.getByText(/Failed to execute comparative audit/i)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to execute deterministic NLG audit/i)).toBeInTheDocument();
     });
   });
 
@@ -470,7 +471,7 @@ describe('AiInsightsDrawer Component', () => {
 
     await vi.runAllTimersAsync();
 
-    const triggerBtn = screen.getByRole('button', { name: /Trigger AI Audit/i });
+    const triggerBtn = screen.getByRole('button', { name: /Trigger NLG Audit/i });
     fireEvent.click(triggerBtn);
 
     await vi.runAllTimersAsync();
@@ -481,5 +482,153 @@ describe('AiInsightsDrawer Component', () => {
     vi.advanceTimersByTime(4000);
 
     vi.useRealTimers();
+  });
+
+  it('handles DeepSeek LLM Agent audit execution and renders Chain-of-Thought deliberation', async () => {
+    const deepSeekHistory = [
+      {
+        ...mockHistory[0],
+        engineType: 'DEEPSEEK_AGENT',
+        llmModel: 'deepseek-r1:7b',
+        thinkingProcess: 'Analyzing 2.4 GHz channel occupancy... IoT devices on VLAN 20 are properly segregated.',
+      },
+    ];
+
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: any) => {
+      if (url.includes('/api/admin/insights/history')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, history: deepSeekHistory }),
+        });
+      }
+      if (url.includes('/api/admin/insights/agent') && opts?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            insight: {
+              ...deepSeekHistory[0],
+              id: 'ins-deepseek-new',
+              executiveSummary: 'DeepSeek-R1 confirmed optimal spectrum allocation.',
+            },
+          }),
+        });
+      }
+      return Promise.reject(new Error('Unknown url'));
+    });
+
+    render(<AiInsightsDrawer isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Neural LLM Agent \(deepseek-r1:7b\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/DeepSeek-R1 Chain-of-Thought Reasoning Deliberation/i)).toBeInTheDocument();
+    });
+
+    // Expand Chain of Thought
+    const cotBtn = screen.getByText(/DeepSeek-R1 Chain-of-Thought Reasoning Deliberation/i);
+    fireEvent.click(cotBtn);
+    expect(screen.getByText(/Analyzing 2.4 GHz channel occupancy/i)).toBeInTheDocument();
+
+    // Trigger DeepSeek Agent run
+    const agentBtn = screen.getByRole('button', { name: /Run DeepSeek Agent/i });
+    fireEvent.click(agentBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/DeepSeek-R1 Neural Agent completed real generative reasoning!/i)).toBeInTheDocument();
+    });
+  });
+
+  it('calls onTriggerNlgAudit and onTriggerAgentAudit when provided as props', async () => {
+    const mockTriggerNlg = vi.fn();
+    const mockTriggerAgent = vi.fn();
+    const mockClose = vi.fn();
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ history: mockHistory }),
+    });
+
+    const { rerender } = render(
+      <AiInsightsDrawer
+        isOpen={true}
+        onClose={mockClose}
+        onTriggerNlgAudit={mockTriggerNlg}
+        onTriggerAgentAudit={mockTriggerAgent}
+        backgroundAudit={{
+          status: 'idle',
+          engineType: 'DEEPSEEK_AGENT',
+          startTime: 0,
+        }}
+      />
+    );
+
+    // Trigger buttons call props when idle
+    const nlgBtn = screen.getByRole('button', { name: /Trigger NLG Audit/i });
+    fireEvent.click(nlgBtn);
+    expect(mockTriggerNlg).toHaveBeenCalled();
+
+    const agentBtn = screen.getByRole('button', { name: /Run DeepSeek Agent/i });
+    fireEvent.click(agentBtn);
+    expect(mockTriggerAgent).toHaveBeenCalled();
+
+    // Rerender with running background audit
+    rerender(
+      <AiInsightsDrawer
+        isOpen={true}
+        onClose={mockClose}
+        onTriggerNlgAudit={mockTriggerNlg}
+        onTriggerAgentAudit={mockTriggerAgent}
+        backgroundAudit={{
+          status: 'running',
+          engineType: 'DEEPSEEK_AGENT',
+          startTime: Date.now(),
+        }}
+      />
+    );
+
+    // Click Push to Background button while running
+    const pushBgBtn = screen.getByRole('button', { name: /Push to Background/i });
+    fireEvent.click(pushBgBtn);
+    expect(mockClose).toHaveBeenCalled();
+
+    // Rerender with background completed state
+    rerender(
+      <AiInsightsDrawer
+        isOpen={true}
+        onClose={mockClose}
+        backgroundAudit={{
+          status: 'completed',
+          engineType: 'DEEPSEEK_AGENT',
+          startTime: Date.now(),
+          result: {
+            ...mockHistory[0],
+            id: 'ins-bg-prop-done',
+            healthScore: 98,
+          },
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/98/)).toBeInTheDocument();
+    });
+
+    // Rerender with background error state
+    rerender(
+      <AiInsightsDrawer
+        isOpen={true}
+        onClose={mockClose}
+        backgroundAudit={{
+          status: 'error',
+          engineType: 'DEEPSEEK_AGENT',
+          startTime: Date.now(),
+          error: 'Remote engine timeout',
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Remote engine timeout/i)).toBeInTheDocument();
+    });
   });
 });

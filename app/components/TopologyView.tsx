@@ -14,7 +14,6 @@ interface TopologyViewProps {
 export default function TopologyView({
   topology = [],
   devices = [],
-  clients = [],
   siteName = 'The Farm',
 }: TopologyViewProps) {
   const [selectedNode, setSelectedNode] = useState<{
@@ -48,119 +47,38 @@ export default function TopologyView({
 
   const customFlatNodes = topology.length > 0 ? flattenTopology(topology) : [];
 
-  // Default fallback infrastructure nodes if none provided
-  const gatewayNode = customFlatNodes.find((n) => n.type?.toLowerCase() === 'gateway') || {
-    type: 'gateway',
-    name: 'Gateway ER7206',
-    mac: 'EC-75-0C-2C-A4-68',
-    model: 'ER7206 v2.20',
-    ip: '192.168.100.1',
-    status: 14,
-    clientCount: 0,
-    uplink: 'WAN Starlink (Dual-WAN SFP)',
-    poeWatts: 'N/A (Router)',
-  };
+  // Map real devices to topology nodes if explicit topology tree not provided
+  const flatNodes = customFlatNodes.length > 0
+    ? customFlatNodes
+    : devices.map((d) => ({
+        type: d.type || 'ap',
+        name: d.name || d.model || 'Device',
+        mac: d.mac,
+        model: d.model,
+        ip: d.ip,
+        status: d.status,
+        clientCount: d.clientNum ?? 0,
+        uplink: 'Auto-Negotiated Uplink',
+        poeWatts: d.totalPoePower ? `${(d.totalPoePower - (d.poeRemain ?? 0)).toFixed(1)}W` : undefined,
+      }));
 
-  const customSwitches = customFlatNodes.filter((n) => n.type?.toLowerCase() === 'switch');
-  const coreSwitchNode = customSwitches[0] || {
-    type: 'switch',
-    name: 'Backbone SG2218P',
-    mac: '30-68-93-E8-29-54',
-    model: 'SG2218P v2.0 (16-Port PoE+)',
-    ip: '192.168.100.3',
-    status: 14,
-    clientCount: 5,
-    uplink: 'Gateway Port 2 (1 Gbps)',
-    poeWatts: '25.5W / 150W (124.5W Headroom)',
-  };
+  if (flatNodes.length === 0) {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-8 text-center space-y-3">
+        <div className="text-3xl">🗺️</div>
+        <div className="text-sm font-bold text-slate-200 font-mono">Physical Topology Data Unavailable</div>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          The Omada Controller did not return an active link-layer topology tree or adopted infrastructure nodes for <strong className="text-cyan-300 font-semibold">{siteName}</strong>.
+        </p>
+      </div>
+    );
+  }
 
-  const edgeSwitches = customSwitches.length > 1
-    ? customSwitches.slice(1)
-    : [
-        {
-          type: 'switch',
-          name: 'Dills ES205GP Switch',
-          mac: 'E0-D3-62-84-6B-00',
-          model: 'ES205GP v1.0 (PoE Edge)',
-          ip: '192.168.100.18',
-          status: 14,
-          clientCount: 1,
-          uplink: 'Backbone SG2218P Port 3',
-          poeWatts: '8.8W / 65W (56.2W Headroom)',
-        },
-        {
-          type: 'switch',
-          name: 'Garden ES205GP Switch',
-          mac: '78-20-51-0B-29-3E',
-          model: 'ES205GP v1.0 (PoE Edge)',
-          ip: '192.168.100.17',
-          status: 14,
-          clientCount: 1,
-          uplink: 'Backbone SG2218P Port 5',
-          poeWatts: '4.1W / 65W (60.9W Headroom)',
-        },
-        {
-          type: 'switch',
-          name: 'Stables ES205GP Switch',
-          mac: 'E0-D3-62-84-6B-28',
-          model: 'ES205GP v1.0 (PoE Edge)',
-          ip: '192.168.100.14',
-          status: 14,
-          clientCount: 0,
-          uplink: 'Backbone SG2218P Port 7',
-          poeWatts: '10.7W / 65W (54.3W Headroom)',
-        },
-      ];
-
-  const customAps = customFlatNodes.filter((n) => n.type?.toLowerCase() === 'ap');
-  const accessPoints = customAps.length > 0
-    ? customAps
-    : [
-        {
-          type: 'ap',
-          name: 'Main Center EAP670',
-          mac: '98-BA-5F-5B-50-18',
-          model: 'EAP670 v2.0 (AX5400)',
-          ip: '192.168.100.30',
-          status: 14,
-          clientCount: 22,
-          uplink: 'Backbone SG2218P Port 9',
-          poeWatts: '14.2W (802.3at)',
-        },
-        {
-          type: 'ap',
-          name: 'Upstairs West EAP670',
-          mac: '3C-64-CF-9E-F6-CC',
-          model: 'EAP670 v2.0 (AX5400)',
-          ip: '192.168.100.31',
-          status: 14,
-          clientCount: 18,
-          uplink: 'Backbone SG2218P Port 11',
-          poeWatts: '13.8W (802.3at)',
-        },
-        {
-          type: 'ap',
-          name: 'Basement East EAP670',
-          mac: '98-BA-5F-5B-51-DE',
-          model: 'EAP670 v2.0 (AX5400)',
-          ip: '192.168.100.33',
-          status: 14,
-          clientCount: 14,
-          uplink: 'Backbone SG2218P Port 13',
-          poeWatts: '12.5W (802.3at)',
-        },
-        {
-          type: 'ap',
-          name: 'Arena EAP110-Outdoor',
-          mac: '78-20-51-09-B3-F1',
-          model: 'EAP110-Outdoor v3.0',
-          ip: '192.168.100.32',
-          status: 14,
-          clientCount: 8,
-          uplink: 'Stables ES205GP Port 1',
-          poeWatts: '5.2W (Passive PoE)',
-        },
-      ];
+  const gatewayNode = flatNodes.find((n) => n.type?.toLowerCase() === 'gateway');
+  const switches = flatNodes.filter((n) => n.type?.toLowerCase() === 'switch');
+  const coreSwitchNode = switches[0] || null;
+  const edgeSwitches = switches.length > 1 ? switches.slice(1) : [];
+  const accessPoints = flatNodes.filter((n) => n.type?.toLowerCase() === 'ap');
 
   const customOthers = customFlatNodes.filter(
     (n) => !['gateway', 'switch', 'ap'].includes(n.type?.toLowerCase() || '')
@@ -360,7 +278,7 @@ export default function TopologyView({
       <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-6 sm:p-10 shadow-inner space-y-8 overflow-x-auto">
         
         {/* Tier 1: Gateway Router */}
-        {(activeLayerFilter === 'all' || activeLayerFilter === 'gateway') && (
+        {(activeLayerFilter === 'all' || activeLayerFilter === 'gateway') && gatewayNode && (
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-2 mb-3 text-xs font-mono text-purple-400 uppercase tracking-wider font-semibold">
               <span>Tier 1: Security Gateway & ISP Uplink</span>
@@ -368,7 +286,7 @@ export default function TopologyView({
             {renderCard(gatewayNode)}
 
             {/* Vertical Trunk to Core Switch */}
-            {activeLayerFilter === 'all' && (
+            {activeLayerFilter === 'all' && (coreSwitchNode || edgeSwitches.length > 0 || accessPoints.length > 0) && (
               <div className="flex flex-col items-center my-3">
                 <div className="w-0.5 h-8 bg-gradient-to-b from-purple-500 to-emerald-500" />
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-400 shadow-sm">
@@ -381,7 +299,7 @@ export default function TopologyView({
         )}
 
         {/* Tier 2: Core Backbone PoE Switch */}
-        {(activeLayerFilter === 'all' || activeLayerFilter === 'switch') && (
+        {(activeLayerFilter === 'all' || activeLayerFilter === 'switch') && coreSwitchNode && (
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-2 mb-3 text-xs font-mono text-emerald-400 uppercase tracking-wider font-semibold">
               <span>Tier 2: Core PoE+ Backbone Switch</span>
@@ -389,11 +307,11 @@ export default function TopologyView({
             {renderCard(coreSwitchNode)}
 
             {/* Distribution Trunk to Edge Switches */}
-            {activeLayerFilter === 'all' && (
+            {activeLayerFilter === 'all' && (edgeSwitches.length > 0 || accessPoints.length > 0) && (
               <div className="flex flex-col items-center my-3 w-full">
                 <div className="w-0.5 h-6 bg-emerald-500" />
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-cyan-400 shadow-sm">
-                  Gigabit Distribution Bus (Ports 3, 5, 7, 9-16)
+                  Gigabit Distribution Bus
                 </span>
                 <div className="w-0.5 h-6 bg-slate-700" />
 
@@ -405,20 +323,20 @@ export default function TopologyView({
         )}
 
         {/* Tier 3: Edge & Outbuilding Switches */}
-        {(activeLayerFilter === 'all' || activeLayerFilter === 'switch') && (
+        {(activeLayerFilter === 'all' || activeLayerFilter === 'switch') && edgeSwitches.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
               <span className="text-xs font-mono text-indigo-400 uppercase tracking-wider font-semibold">
-                Tier 3: Distribution & Outbuilding PoE Switches (3 Managed Nodes)
+                Tier 3: Distribution & Outbuilding PoE Switches ({edgeSwitches.length} Managed Nodes)
               </span>
-              <span className="text-[11px] font-mono text-slate-500">Connected via Core SG2218P</span>
+              <span className="text-[11px] font-mono text-slate-500">Connected via Core Switch</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {edgeSwitches.map((edge) => renderCard(edge))}
             </div>
 
-            {activeLayerFilter === 'all' && (
+            {activeLayerFilter === 'all' && accessPoints.length > 0 && (
               <div className="flex flex-col items-center my-4">
                 <div className="w-full h-0.5 bg-slate-800" />
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-400 -mt-2.5 shadow-sm">
@@ -430,13 +348,15 @@ export default function TopologyView({
         )}
 
         {/* Tier 4: Wireless Access Points (EAPs) */}
-        {(activeLayerFilter === 'all' || activeLayerFilter === 'ap') && (
+        {(activeLayerFilter === 'all' || activeLayerFilter === 'ap') && accessPoints.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
               <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider font-semibold">
-                Tier 4: High-Density Wireless APs (4 Active Broadcast Radios)
+                Tier 4: High-Density Wireless APs ({accessPoints.length} Active Broadcast Radios)
               </span>
-              <span className="text-[11px] font-mono text-cyan-300 font-bold">62 Active Wi-Fi Clients</span>
+              <span className="text-[11px] font-mono text-cyan-300 font-bold">
+                {accessPoints.reduce((sum, ap) => sum + (ap.clientCount || 0), 0)} Active Wi-Fi Clients
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -444,6 +364,8 @@ export default function TopologyView({
             </div>
           </div>
         )}
+
+
 
         {/* Tier 5: Other Connected Infrastructure Devices */}
         {customOthers.length > 0 && (

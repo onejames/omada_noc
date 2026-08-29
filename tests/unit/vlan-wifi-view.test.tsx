@@ -5,13 +5,11 @@ import VlanWifiView from '@/app/components/VlanWifiView';
 import { OmadaLanNetwork, OmadaSsidSetting } from '@/types/omada';
 
 describe('VlanWifiView Component', () => {
-  it('renders default fallback VLANs, SSIDs, and RF channels when no data is provided', () => {
+  it('renders honest empty status when no data is provided', () => {
     render(<VlanWifiView />);
     expect(screen.getByText(/VLAN Network Segmentation Matrix/i)).toBeInTheDocument();
-    expect(screen.getByText(/Wireless SSIDs & Security Profiles/i)).toBeInTheDocument();
-    expect(screen.getByText(/RF Spectrum & Radio Channel Allocation/i)).toBeInTheDocument();
-    expect(screen.getByText(/IoT Smart Home/i)).toBeInTheDocument();
-    expect(screen.getByText(/TheFarmStrlnk/i)).toBeInTheDocument();
+    expect(screen.getByText(/No managed VLAN networks detected on this site/i)).toBeInTheDocument();
+    expect(screen.getByText(/No wireless SSIDs detected on this site/i)).toBeInTheDocument();
   });
 
   it('renders custom networks and SSIDs cleanly', () => {
@@ -48,7 +46,7 @@ describe('VlanWifiView Component', () => {
     expect(screen.getByText(/HQ Office/i)).toBeInTheDocument();
     expect(screen.getByText(/Corporate VLAN/i)).toBeInTheDocument();
     expect(screen.getByText(/Corp-Secure-WiFi/i)).toBeInTheDocument();
-    expect(screen.getByText(/Hidden SSID/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hidden/i)).toBeInTheDocument();
     expect(screen.getByText(/42 clients/i)).toBeInTheDocument();
   });
 });

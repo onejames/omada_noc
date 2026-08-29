@@ -1,10 +1,12 @@
 /**
  * Interactive Omada Network AI Copilot CLI
- * 
- * Interactive terminal assistant that allows network engineers to ask free-form questions
- * about the network and leverages the Omada NOC MCP Server to retrieve real-time data
- * and generate optimization suggestions.
- * 
+ *
+ * Real Neural LLM Copilot that bridges local Ollama models (default: deepseek-r1:7b)
+ * to the Omada NOC Model Context Protocol (MCP) Server over stdio.
+ *
+ * When an LLM is online, it performs autonomous tool selection, executes MCP tools,
+ * and streams neural diagnostic reasoning.
+ *
  * Usage:
  *   npx tsx scripts/mcp-copilot.ts
  *   or
@@ -27,10 +29,47 @@ if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
   }
 }
 
+const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'deepseek-r1:7b';
+
+async function checkOllama(): Promise<boolean> {
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(2000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function queryOllama(prompt: string, model = OLLAMA_MODEL): Promise<string> {
+  const res = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      prompt,
+      stream: false,
+      options: { temperature: 0.2, num_predict: 1024 },
+    }),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok) throw new Error(`Ollama error HTTP ${res.status}`);
+  const data = (await res.json()) as { response?: string };
+  return data.response || '';
+}
+
 async function startCopilot() {
   console.log('\n===============================================================');
-  console.log('  🌐 Omada Network AI Copilot (Interactive Terminal Chat)    ');
+  console.log('  🌐 Omada Network AI Copilot (Live Neural Agent CLI)         ');
   console.log('===============================================================\n');
+
+  const isOllamaOnline = await checkOllama();
+  if (isOllamaOnline) {
+    console.log(`🤖 \x1b[32mNeural LLM Backend:\x1b[0m Connected to Ollama (${OLLAMA_MODEL} at ${OLLAMA_URL})`);
+  } else {
+    console.log(`⚠️  \x1b[33mNeural LLM Backend:\x1b[0m Ollama offline. Operating in direct MCP tool routing mode.`);
+  }
+
   console.log('🔌 Connecting to Omada NOC MCP Bridge...');
 
   const cliPath = path.resolve(process.cwd(), 'mcp/cli.ts');
@@ -56,10 +95,10 @@ async function startCopilot() {
   const toolsResult = await client.listTools();
   console.log(`✅ Connected! Available MCP Tools: ${toolsResult.tools.map((t) => t.name).join(', ')}\n`);
   console.log('💡 Example questions you can ask:');
-  console.log('  • "audit network" or "how is the network health?"');
-  console.log('  • "list access points" or "show me all switches"');
-  console.log('  • "which devices are using the most bandwidth?"');
-  console.log('  • "inspect Master Bedroom TV" or "inspect 192.168.100.74"');
+  console.log('  • "Audit the network and identify any performance bottlenecks."');
+  console.log('  • "List all Access Points and their current client counts."');
+  console.log('  • "Which wireless devices are consuming the highest bandwidth?"');
+  console.log('  • "Why is device 192.168.100.74 experiencing poor connectivity?"');
   console.log('  • Type "exit" or "quit" to leave.\n');
 
   const rl = readline.createInterface({
@@ -77,40 +116,57 @@ async function startCopilot() {
         process.exit(0);
       }
 
-      console.log('\n🤔 \x1b[33mThinking & Selecting MCP Tool...\x1b[0m');
+      console.log('\n🤔 \x1b[33mSelecting MCP Tool & Reasoning...\x1b[0m');
 
       try {
-        let toolName: string = 'get_network_status';
+        let toolName = 'get_network_status';
         let toolArgs: Record<string, unknown> = {};
 
-        const lower = input.toLowerCase();
+        if (isOllamaOnline) {
+          // Use real Neural LLM to select tool & parameters
+          const toolSelectionPrompt = `You are an AI router for a network NOC. Given the user's question, select the SINGLE best MCP tool to call.
+Available Tools:
+1. get_network_status: Controller online status, client counts, total bandwidth.
+2. get_active_clients (args: connection_type: 'all'|'wired'|'wireless', sort_by: 'activity'|'traffic'|'uptime', limit: number): Client device inventory and bandwidth.
+3. get_network_devices (args: device_type: 'all'|'ap'|'switch'|'gateway'): Physical hardware inventory and health.
+4. get_client_detail (args: query: string): Deep RF signal, RSSI, IP/MAC, AP association for a single client.
+5. audit_network_health: Full diagnostic health score, warnings, and suggestions.
 
-        if (lower.includes('audit') || lower.includes('health') || lower.includes('score') || lower.includes('suggest') || lower.includes('recommend')) {
-          toolName = 'audit_network_health';
-          toolArgs = {};
-        } else if (lower.includes('ap') || lower.includes('access point') || lower.includes('switch') || lower.includes('gateway') || lower.includes('router') || lower.includes('device') || lower.includes('hardware') || lower.includes('infrastructure')) {
-          toolName = 'get_network_devices';
-          if (lower.includes('ap') || lower.includes('access point')) {
-            toolArgs = { device_type: 'ap' };
-          } else if (lower.includes('switch')) {
-            toolArgs = { device_type: 'switch' };
-          } else if (lower.includes('gateway') || lower.includes('router')) {
-            toolArgs = { device_type: 'gateway' };
+User Question: "${input}"
+
+Respond ONLY with a valid JSON object (no markdown, no other text):
+{"tool": "<tool_name>", "args": {<arguments>}}`;
+
+          try {
+            const llmSelection = await queryOllama(toolSelectionPrompt);
+            const jsonMatch = llmSelection.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.tool) toolName = parsed.tool;
+              if (parsed.args) toolArgs = parsed.args;
+            }
+          } catch {
+            // Fallback to heuristic parser
           }
-        } else if (lower.includes('inspect') || lower.includes('detail') || lower.includes('lookup') || lower.includes('ip') || lower.includes('mac') || lower.includes('tv') || lower.includes('iphone') || lower.includes('xbox') || lower.includes('why is')) {
-          toolName = 'get_client_detail';
-          // Extract target query
-          const target = input.replace(/inspect|detail|lookup|why is|about|device|client/gi, '').trim() || input;
-          toolArgs = { query: target };
-        } else if (lower.includes('bandwidth') || lower.includes('top') || lower.includes('traffic') || lower.includes('wifi') || lower.includes('wireless') || lower.includes('wired') || lower.includes('client')) {
-          toolName = 'get_active_clients';
-          const medium = lower.includes('wireless') || lower.includes('wifi') ? 'wireless' : lower.includes('wired') || lower.includes('ethernet') ? 'wired' : 'all';
-          const sortBy = lower.includes('traffic') || lower.includes('data') || lower.includes('download') ? 'traffic' : lower.includes('uptime') ? 'uptime' : 'activity';
-          toolArgs = { connection_type: medium, sort_by: sortBy, limit: 5 };
+        } else {
+          // Heuristic Fallback when Ollama is offline
+          const lower = input.toLowerCase();
+          if (lower.includes('audit') || lower.includes('health') || lower.includes('score')) {
+            toolName = 'audit_network_health';
+          } else if (lower.includes('ap') || lower.includes('switch') || lower.includes('device') || lower.includes('hardware')) {
+            toolName = 'get_network_devices';
+            toolArgs = { device_type: lower.includes('ap') ? 'ap' : lower.includes('switch') ? 'switch' : 'all' };
+          } else if (lower.includes('inspect') || lower.includes('detail') || lower.includes('why') || lower.includes('192.')) {
+            toolName = 'get_client_detail';
+            toolArgs = { query: input.replace(/inspect|detail|lookup|why is/gi, '').trim() || input };
+          } else if (lower.includes('client') || lower.includes('bandwidth') || lower.includes('traffic')) {
+            toolName = 'get_active_clients';
+            toolArgs = { connection_type: 'wireless', sort_by: 'activity', limit: 5 };
+          }
         }
 
-        console.log(`🛠️ \x1b[35mExecuting MCP Tool:\x1b[0m \x1b[1m${toolName}\x1b[0m(${JSON.stringify(toolArgs)})`);
-        
+        console.log(`🛠️  \x1b[35mInvoking MCP Tool:\x1b[0m \x1b[1m${toolName}\x1b[0m(${JSON.stringify(toolArgs)})`);
+
         const startTime = Date.now();
         const res = await client.callTool({
           name: toolName,
@@ -118,10 +174,28 @@ async function startCopilot() {
         });
         const duration = Date.now() - startTime;
 
-        console.log(`⚡ \x1b[32mReceived Live Telemetry (${duration}ms):\x1b[0m\n`);
         const contentList = res.content as Array<{ type: string; text: string }>;
-        const text = contentList?.[0]?.text || '';
-        console.log(text);
+        const rawTelemetry = contentList?.[0]?.text || '';
+
+        console.log(`⚡ \x1b[32mReceived Live Telemetry from Controller (${duration}ms)\x1b[0m`);
+
+        if (isOllamaOnline) {
+          // Pass raw telemetry back to LLM for final synthesis
+          console.log(`🧠 \x1b[36m${OLLAMA_MODEL} Synthesizing Response...\x1b[0m\n`);
+          const synthesisPrompt = `You are a Principal NOC Reliability Engineer.
+The user asked: "${input}"
+The live Omada network telemetry returned by the MCP tool is:
+${rawTelemetry}
+
+Provide a concise, direct, and actionable answer to the user's question based strictly on this real telemetry.`;
+
+          const answer = await queryOllama(synthesisPrompt);
+          // Strip think tags if present
+          const cleanAnswer = answer.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
+          console.log(cleanAnswer);
+        } else {
+          console.log('\n' + rawTelemetry);
+        }
       } catch (err: unknown) {
         console.error('❌ Error executing copilot query:', err);
       }

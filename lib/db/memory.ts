@@ -299,8 +299,10 @@ export async function memorySaveAiInsight(
   insight: Omit<AiInsightRecord, 'id' | 'createdAt'>
 ): Promise<AiInsightRecord> {
   await initMemoryDb();
+  const engineType = (insight.engineType || insight.metricsSnapshot?.engineType || (insight.metricsSnapshot?.llmModel ? 'DEEPSEEK_AGENT' : 'NLG_ALGORITHMIC')) as 'NLG_ALGORITHMIC' | 'DEEPSEEK_AGENT';
   const record: AiInsightRecord = {
     ...insight,
+    engineType,
     id: `insight-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     createdAt: new Date().toISOString(),
   };

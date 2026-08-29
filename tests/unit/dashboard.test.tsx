@@ -431,7 +431,7 @@ describe('Dashboard Client Component', () => {
     fireEvent.click(aiBtns[0]);
 
     // Drawer should be open
-    expect(screen.getByText(/Iterative AI Insights Engine/i)).toBeInTheDocument();
+    expect(screen.getByText(/Continuous AI & NLG Engine/i)).toBeInTheDocument();
 
     // Click Docs button
     const docsBtns = screen.getAllByRole('button', { name: /Docs/i });
@@ -466,13 +466,13 @@ describe('Dashboard Client Component', () => {
     // Switch to Topology Map
     const topologyTab = screen.getByRole('button', { name: /Topology Map/i });
     fireEvent.click(topologyTab);
-    expect(screen.getByText(/Physical Network Topology Graph/i)).toBeInTheDocument();
+    expect(screen.getByText(/Physical Topology Data Unavailable/i)).toBeInTheDocument();
 
     // Switch to VLANs & Wi-Fi
     const vlanTab = screen.getByRole('button', { name: /VLANs & Wi-Fi/i });
     fireEvent.click(vlanTab);
     expect(screen.getByText(/VLAN Network Segmentation Matrix/i)).toBeInTheDocument();
-    expect(screen.getByText(/Wireless SSIDs & Security Profiles/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wireless SSID Fleet Configuration/i)).toBeInTheDocument();
 
     // Switch to Hardware & PoE
     const poeTab = screen.getByRole('button', { name: /Hardware & PoE/i });
@@ -582,5 +582,213 @@ describe('Dashboard Client Component', () => {
 
     fireEvent.change(sortSelect, { target: { value: 'unknown' } });
     expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
+  });
+
+  it('handles background NLG audit lifecycle and renders floating badge with view/dismiss actions', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/api/auth/me')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ authenticated: true, user: { role: 'ADMIN' } }),
+        };
+      }
+      if (url.includes('/api/admin/insights/history')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ history: [] }),
+        };
+      }
+      if (url.includes('/api/admin/insights/run') && opts?.method === 'POST') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            insight: {
+              id: 'ins-test-bg',
+              createdAt: '2026-08-28T12:00:00Z',
+              healthScore: 92,
+              engineType: 'NLG_ALGORITHMIC',
+              executiveSummary: 'Audit completed.',
+              persistingIssues: [],
+              resolvedIssues: [],
+              newIssues: [],
+              actionableSuggestions: [],
+            },
+          }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => mockInitialData };
+    });
+
+    render(<Dashboard initialData={mockInitialData} />);
+
+    // Wait for ADMIN AI insights button to appear
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /AI Insights/i })).toBeInTheDocument();
+    });
+
+    // Open AI Insights drawer
+    fireEvent.click(screen.getByRole('button', { name: /AI Insights/i }));
+    expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
+
+    // Click Trigger NLG Audit inside drawer
+    const triggerBtn = screen.getByRole('button', { name: /Trigger NLG Audit/i });
+    fireEvent.click(triggerBtn);
+
+    // Close drawer to see floating badge in background
+    const closeBtn = screen.getByRole('button', { name: /Close drawer/i });
+    fireEvent.click(closeBtn);
+
+    // Wait for completion floating badge to appear
+    await waitFor(() => {
+      expect(screen.getByText(/NLG Audit Complete/i)).toBeInTheDocument();
+      expect(screen.getByText(/Score: 92\/100/i)).toBeInTheDocument();
+    });
+
+    // Click View on floating badge to reopen drawer
+    const viewBtn = screen.getByRole('button', { name: /^View$/i });
+    fireEvent.click(viewBtn);
+    expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
+  });
+
+  it('handles background DeepSeek Agent audit lifecycle with error floating badge', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/api/auth/me')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ authenticated: true, user: { role: 'ADMIN' } }),
+        };
+      }
+      if (url.includes('/api/admin/insights/history')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ history: [] }),
+        };
+      }
+      if (url.includes('/api/admin/insights/agent') && opts?.method === 'POST') {
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: 'Ollama instance unreachable' }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => mockInitialData };
+    });
+
+    render(<Dashboard initialData={mockInitialData} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /AI Insights/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /AI Insights/i }));
+    const runAgentBtn = screen.getByRole('button', { name: /Run DeepSeek Agent/i });
+    fireEvent.click(runAgentBtn);
+
+    // Minimize drawer with Push to Background button
+    const pushBgBtn = screen.getByRole('button', { name: /Push to Background/i });
+    fireEvent.click(pushBgBtn);
+
+    // Wait for error floating badge
+    await waitFor(() => {
+      expect(screen.getByText(/Audit Execution Error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Ollama instance unreachable/i)).toBeInTheDocument();
+    });
+
+    // Click Details button to inspect error inside drawer
+    const detailsBtn = screen.getByRole('button', { name: /Details/i });
+    fireEvent.click(detailsBtn);
+    expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
+
+    // Close drawer again - badge is now marked read and dismissed
+    fireEvent.click(screen.getByRole('button', { name: /Close drawer/i }));
+    expect(screen.queryByText(/Audit Execution Error/i)).not.toBeInTheDocument();
+  });
+
+  it('allows clicking Open on running floating badge', async () => {
+    let resolver: any;
+    const slowPromise = new Promise((resolve) => {
+      resolver = resolve;
+    });
+
+    global.fetch = vi.fn().mockImplementation(async (url: string, opts?: any) => {
+      if (url.includes('/api/auth/me')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ authenticated: true, user: { role: 'ADMIN' } }),
+        };
+      }
+      if (url.includes('/api/admin/insights/history')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ history: [] }),
+        };
+      }
+      if (url.includes('/api/admin/insights/agent') && opts?.method === 'POST') {
+        return slowPromise;
+      }
+      return { ok: true, status: 200, json: async () => mockInitialData };
+    });
+
+    render(<Dashboard initialData={mockInitialData} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /AI Insights/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /AI Insights/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Run DeepSeek Agent/i }));
+
+    // Minimize to background
+    fireEvent.click(screen.getByRole('button', { name: /Push to Background/i }));
+
+    // See running badge
+    expect(screen.getByText(/Reasoning on network telemetry in background.../i)).toBeInTheDocument();
+
+    // Click Open on running badge
+    const openBtn = screen.getByRole('button', { name: /Open/i });
+    fireEvent.click(openBtn);
+    expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
+
+    // Resolve slow promise
+    resolver({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        insight: { ...mockInitialData, id: 'ins-slow-1' },
+      }),
+    });
+  });
+
+  it('handles connection notice retry and dismiss interactions', async () => {
+    const offlineData: TelemetryResponse = {
+      ...mockInitialData,
+      status: {
+        ...mockInitialData.status,
+        controllerOnline: false,
+        error: 'Connection refused at 192.168.1.1',
+      },
+    };
+
+    render(<Dashboard initialData={offlineData} />);
+
+    expect(screen.getByText(/Connection refused at 192.168.1.1/i)).toBeInTheDocument();
+
+    // Click Retry button
+    const retryBtn = screen.getByRole('button', { name: /Retry/i });
+    fireEvent.click(retryBtn);
+
+    // Click Dismiss button
+    const dismissNoticeBtn = screen.getByRole('button', { name: /Dismiss Connection Notice/i });
+    fireEvent.click(dismissNoticeBtn);
+    expect(screen.queryByText(/Omada Controller Connection Notice:/i)).not.toBeInTheDocument();
   });
 });

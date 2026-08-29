@@ -203,4 +203,12 @@ describe('ProfileWidget Component', () => {
     const dashLink = screen.getByText('Telemetry Dashboard');
     fireEvent.click(dashLink);
   });
+
+  it('tests getInitials utility function', async () => {
+    const { getInitials } = await import('@/app/components/ProfileWidget');
+    expect(getInitials('John Doe')).toBe('JD');
+    expect(getInitials('Alice')).toBe('A');
+    expect(getInitials('')).toBe('U');
+    expect(getInitials('  First   Last  ')).toBe('FL');
+  });
 });

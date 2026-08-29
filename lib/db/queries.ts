@@ -610,6 +610,9 @@ export async function getRecentAiInsights(limit: number = 5): Promise<AiInsightR
 
     return res.rows.map((row) => ({
       ...row,
+      engineType: row.engineType || row.metricsSnapshot?.engineType || (row.metricsSnapshot?.llmModel ? 'DEEPSEEK_AGENT' : 'NLG_ALGORITHMIC'),
+      llmModel: row.llmModel || row.metricsSnapshot?.llmModel,
+      thinkingProcess: row.thinkingProcess || row.metricsSnapshot?.thinkingProcess,
       narration: row.narration || row.metricsSnapshot?.narration || undefined,
     }));
   } catch (err) {
@@ -647,6 +650,9 @@ export async function getLatestAiInsight(): Promise<AiInsightRecord | null> {
     const row = res.rows[0];
     return {
       ...row,
+      engineType: row.engineType || row.metricsSnapshot?.engineType || (row.metricsSnapshot?.llmModel ? 'DEEPSEEK_AGENT' : 'NLG_ALGORITHMIC'),
+      llmModel: row.llmModel || row.metricsSnapshot?.llmModel,
+      thinkingProcess: row.thinkingProcess || row.metricsSnapshot?.thinkingProcess,
       narration: row.narration || row.metricsSnapshot?.narration || undefined,
     };
   } catch (err) {

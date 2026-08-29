@@ -5,12 +5,11 @@ import HardwarePoeView from '@/app/components/HardwarePoeView';
 import { PoeDeviceBudget, OmadaDeviceItem } from '@/types/omada';
 
 describe('HardwarePoeView Component', () => {
-  it('renders default fallback PoE budget and hardware devices when no data is provided', () => {
+  it('renders honest empty status when no data is provided', () => {
     render(<HardwarePoeView />);
     expect(screen.getByText(/PoE Switch Power Budget & Headroom/i)).toBeInTheDocument();
-    expect(screen.getByText(/Physical Infrastructure Health Matrix/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Backbone SG2218P/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/Garden ES205GP Switch/i)).toBeInTheDocument();
+    expect(screen.getByText(/No PoE switch telemetry reporting on this site/i)).toBeInTheDocument();
+    expect(screen.getByText(/No physical hardware nodes discovered on this site/i)).toBeInTheDocument();
   });
 
   it('renders custom PoE switch telemetry and hardware nodes', () => {
@@ -50,7 +49,7 @@ describe('HardwarePoeView Component', () => {
     render(<HardwarePoeView poeDevices={customPoe} devices={customNodes} siteName="HQ Site" />);
     expect(screen.getByText(/HQ Site/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Custom Core PoE Switch/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/280.5 W/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/103.5 W/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/280.5W/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/103.5W/i)).toBeInTheDocument();
   });
 });

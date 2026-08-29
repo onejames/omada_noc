@@ -1060,6 +1060,26 @@ describe('OmadaClient', () => {
         if (url.includes('/api/v2/sites') && !url.includes('/devices') && !url.includes('/events')) {
           return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
         }
+        if (url.includes('/devices')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: [
+                {
+                  mac: '00-11-22-33-44-01',
+                  name: 'Gateway ER7206',
+                  type: 'gateway',
+                  model: 'ER7206 v2.0',
+                  ip: '192.168.100.1',
+                  status: 14,
+                  uptime: 86400,
+                },
+              ],
+            }),
+          };
+        }
         if (url.includes('/events')) {
           return {
             ok: true,
@@ -1087,25 +1107,41 @@ describe('OmadaClient', () => {
       global.fetch = mockFetch;
       const client = new OmadaClient();
       const wan = await client.getWanStatus();
-      expect(wan.primaryWan.providerName).toContain('Starlink');
-      expect(wan.primaryWan.online).toBe(true);
+      expect(wan).toBeDefined();
+      expect(wan?.gatewayModel).toContain('ER7206');
+      expect(wan?.primaryWan.online).toBe(true);
 
       const events = await client.getNocEvents();
       expect(events.length).toBeGreaterThanOrEqual(1);
       expect(events[0].title).toBe('Fast Roam completed');
     });
 
-    it('falls back to default WAN and events when fetch throws', async () => {
+    it('returns undefined WAN and empty events when fetch throws or site has no gateway', async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Network offline'));
       global.fetch = mockFetch;
 
       const client = new OmadaClient();
       const wan = await client.getWanStatus();
-      expect(wan.primaryWan.online).toBe(true);
+      expect(wan).toBeUndefined();
 
       const events = await client.getNocEvents();
-      expect(events.length).toBe(5);
-      expect(events[0].type).toBe('roam');
+      expect(events).toEqual([]);
+    });
+
+    it('returns undefined when gateway device array is empty in getWanStatus', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.includes('/api/v2/login')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { token: 'tok' } }) };
+        }
+        if (url.includes('/api/v2/sites')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ id: 'site1', name: 'Site 1' }] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [] }) };
+      });
+      global.fetch = mockFetch;
+      const client = new OmadaClient();
+      const wan = await client.getWanStatus();
+      expect(wan).toBeUndefined();
     });
   });
 
