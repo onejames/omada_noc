@@ -527,4 +527,60 @@ describe('Dashboard Client Component', () => {
     expect(screen.getByText(/TOP 5 ACTIVE/i)).toBeInTheDocument();
     expect(screen.queryByText(/Client Device 6/i)).not.toBeInTheDocument();
   });
+
+  it('opens ClientInspectorModal when clicking a client table row and closes it', () => {
+    render(<Dashboard initialData={mockInitialData} />);
+
+    // Click client row
+    const clientName = screen.getByText('MacBook Pro');
+    fireEvent.click(clientName);
+
+    expect(screen.getByRole('dialog', { name: /Client Diagnostic Deep-Dive/i })).toBeInTheDocument();
+    expect(screen.getByText(/RF Signal Strength/i)).toBeInTheDocument();
+
+    // Close modal
+    const doneBtn = screen.getByRole('button', { name: /Done/i });
+    fireEvent.click(doneBtn);
+    expect(screen.queryByRole('dialog', { name: /Client Diagnostic Deep-Dive/i })).not.toBeInTheDocument();
+  });
+
+  it('copies diagnostic snapshot to clipboard and triggers Live Events modal', () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(),
+      },
+    });
+
+    render(<Dashboard initialData={mockInitialData} />);
+
+    // Click Snapshot button
+    const snapshotBtn = screen.getByRole('button', { name: /Snapshot/i });
+    fireEvent.click(snapshotBtn);
+    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    expect(screen.getByText(/Diagnostic snapshot copied to clipboard!/i)).toBeInTheDocument();
+
+    // Click Live Events button
+    const eventsBtn = screen.getByRole('button', { name: /Live Events/i });
+    fireEvent.click(eventsBtn);
+    expect(screen.getByText('Live NOC Event Stream')).toBeInTheDocument();
+
+    // Close Live Events modal
+    const closeBtn = screen.getByRole('button', { name: 'Close' });
+    fireEvent.click(closeBtn);
+    expect(screen.queryByText('Live NOC Event Stream')).not.toBeInTheDocument();
+  });
+
+  it('handles client list sorting by traffic and uptime and auto-collapse expansion', () => {
+    render(<Dashboard initialData={mockInitialData} />);
+
+    const sortSelect = screen.getByLabelText(/Sort clients by/i);
+    fireEvent.change(sortSelect, { target: { value: 'traffic' } });
+    expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
+
+    fireEvent.change(sortSelect, { target: { value: 'uptime' } });
+    expect(screen.getByText('Core Server')).toBeInTheDocument();
+
+    fireEvent.change(sortSelect, { target: { value: 'unknown' } });
+    expect(screen.getByText('MacBook Pro')).toBeInTheDocument();
+  });
 });

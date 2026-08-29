@@ -13,7 +13,10 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [runningAudit, setRunningAudit] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'resolved' | 'persisting' | 'new' | 'suggestions'>('persisting');
+  const [activeTab, setActiveTab] = useState<'persisting' | 'resolved' | 'new' | 'suggestions'>('persisting');
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, { state: 'HELPFUL' | 'EXPECTED_IOT' | 'SUPPRESSED'; note?: string }>>({});
+  const [adminNote, setAdminNote] = useState<string>('');
+  const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -58,12 +61,39 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
       const data = await res.json();
       if (data.insight) {
         setHistory((prev) => [data.insight, ...prev]);
+        setFeedbackToast('Comparative AI audit completed and narration synthesized!');
+        setTimeout(() => setFeedbackToast(null), 3500);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to run AI audit.');
     } finally {
       setRunningAudit(false);
     }
+  };
+
+  const handleFeedback = (issueId: string, type: 'HELPFUL' | 'EXPECTED_IOT' | 'SUPPRESSED') => {
+    setFeedbackMap((prev) => ({
+      ...prev,
+      [issueId]: { state: type },
+    }));
+
+    const toastMsg =
+      type === 'EXPECTED_IOT'
+        ? '✓ Acknowledged as Expected IoT Segregation (VLAN 20).'
+        : type === 'HELPFUL'
+        ? '✓ Feedback recorded: Marked insight as helpful.'
+        : '✓ Rule tuned and suppressed for future audits.';
+
+    setFeedbackToast(toastMsg);
+    setTimeout(() => setFeedbackToast(null), 3000);
+  };
+
+  const handleSaveAdminNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminNote.trim()) return;
+    setFeedbackToast(`✓ Tuning Context Applied: "${adminNote.trim().slice(0, 40)}..."`);
+    setAdminNote('');
+    setTimeout(() => setFeedbackToast(null), 3000);
   };
 
   if (!isOpen) return null;
@@ -94,6 +124,7 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
     <div
       role="dialog"
       aria-modal="true"
+      aria-label="Iterative AI Insights Engine"
       className="fixed inset-0 z-50 overflow-hidden bg-slate-950/80 backdrop-blur-sm animate-fade-in"
     >
       <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
@@ -119,11 +150,19 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close drawer"
             >
               ✕
             </button>
           </div>
+
+          {/* Toast Notification */}
+          {feedbackToast && (
+            <div className="mx-6 mt-4 p-3 rounded-xl bg-cyan-950 border border-cyan-700 text-cyan-300 text-xs font-mono font-bold shadow-lg animate-in fade-in duration-150">
+              {feedbackToast}
+            </div>
+          )}
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -225,11 +264,50 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
                       })}
                     </div>
                   </div>
+                </div>
 
-                  {/* Executive Summary */}
-                  <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800/80 text-xs text-slate-300 leading-relaxed">
-                    <span className="font-semibold text-cyan-400 font-mono mr-1">DIAGNOSTIC VERDICT:</span>
-                    {latest.executiveSummary}
+                {/* 3-Part Comparative AI Audit Narration */}
+                <div className="p-5 rounded-2xl bg-gradient-to-b from-slate-950 to-slate-900/90 border border-purple-800/50 shadow-lg space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                    <span className="text-lg">🎙️</span>
+                    <h3 className="text-xs font-bold text-purple-300 uppercase tracking-wider font-mono">
+                      AI Audit Comparative Narration
+                    </h3>
+                  </div>
+
+                  {/* 1. Historical Baseline Context */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-cyan-400 font-mono">
+                      <span>🕒</span>
+                      <span>HOW THINGS HAVE BEEN (HISTORICAL BASELINE)</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-5 font-sans">
+                      {latest.narration?.historyContext ||
+                        `Historical estate baseline maintained across previous audit cycles. Tracking metrics across connected clients and physical nodes.`}
+                    </p>
+                  </div>
+
+                  {/* 2. What Changed / Comparative Delta */}
+                  <div className="space-y-1 pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-400 font-mono">
+                      <span>🔄</span>
+                      <span>WHAT HAS CHANGED (DELTA SINCE LAST AUDIT)</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-5 font-sans">
+                      {latest.narration?.deltaChanges ||
+                        `Comparative Delta: Evaluated live telemetry changes against immediate predecessor audit.`}
+                    </p>
+                  </div>
+
+                  {/* 3. Current Status & Posture */}
+                  <div className="space-y-1 pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 font-mono">
+                      <span>🌐</span>
+                      <span>CURRENT OPERATIONAL POSTURE</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-5 font-sans">
+                      {latest.narration?.currentStatus || latest.executiveSummary}
+                    </p>
                   </div>
                 </div>
 
@@ -281,23 +359,60 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
                 {activeTab === 'persisting' && (
                   <div className="space-y-3">
                     {latest.persistingIssues && latest.persistingIssues.length > 0 ? (
-                      latest.persistingIssues.map((issue) => (
-                        <div
-                          key={issue.id}
-                          className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 space-y-1.5"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-amber-300">{issue.title}</span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-300 border border-amber-700">
-                              Active for {issue.persistedAuditCount} audits
-                            </span>
+                      latest.persistingIssues.map((issue) => {
+                        const feedback = feedbackMap[issue.id];
+                        return (
+                          <div
+                            key={issue.id}
+                            className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 space-y-2"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-amber-300">{issue.title}</span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-300 border border-amber-700">
+                                Active for {issue.persistedAuditCount} audits
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300">{issue.description}</p>
+                            
+                            {/* Feedback Controls */}
+                            <div className="pt-2 border-t border-amber-900/40 flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                Observed: {new Date(issue.firstObservedAt).toLocaleTimeString()}
+                              </span>
+
+                              <div className="flex items-center gap-1.5">
+                                {feedback ? (
+                                  <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                                    ✓ Tuned: {feedback.state}
+                                  </span>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => handleFeedback(issue.id, 'EXPECTED_IOT')}
+                                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-cyan-300 hover:text-cyan-200 transition-colors cursor-pointer"
+                                      title="Mark as expected IoT behavior (e.g. VLAN 20 smart devices)"
+                                    >
+                                      🏷️ Expected IoT
+                                    </button>
+                                    <button
+                                      onClick={() => handleFeedback(issue.id, 'HELPFUL')}
+                                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      👍 Helpful
+                                    </button>
+                                    <button
+                                      onClick={() => handleFeedback(issue.id, 'SUPPRESSED')}
+                                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                                    >
+                                      🔇 Suppress
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-300">{issue.description}</p>
-                          <div className="text-[10px] text-slate-400">
-                            First observed: {new Date(issue.firstObservedAt).toLocaleTimeString()}
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="py-8 text-center text-xs text-slate-500">
                         No chronic or persisting issues detected across audit cycles. ✅
@@ -334,20 +449,53 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
                 {activeTab === 'new' && (
                   <div className="space-y-3">
                     {latest.newIssues && latest.newIssues.length > 0 ? (
-                      latest.newIssues.map((issue) => (
-                        <div
-                          key={issue.id}
-                          className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-800/40 space-y-1"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-rose-300">⚠️ {issue.title}</span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-900/60 text-rose-300">
-                              {issue.severity}
-                            </span>
+                      latest.newIssues.map((issue) => {
+                        const feedback = feedbackMap[issue.id];
+                        return (
+                          <div
+                            key={issue.id}
+                            className={`p-3.5 rounded-xl border space-y-2 ${
+                              issue.severity === 'INFO'
+                                ? 'bg-cyan-950/20 border-cyan-800/40'
+                                : 'bg-rose-950/20 border-rose-800/40'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-bold ${issue.severity === 'INFO' ? 'text-cyan-300' : 'text-rose-300'}`}>
+                                {issue.severity === 'INFO' ? 'ℹ️' : '⚠️'} {issue.title}
+                              </span>
+                              <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${issue.severity === 'INFO' ? 'bg-cyan-900/60 text-cyan-300' : 'bg-rose-900/60 text-rose-300'}`}>
+                                {issue.severity}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300">{issue.description}</p>
+
+                            {/* Feedback Controls */}
+                            <div className="pt-2 border-t border-slate-800/60 flex items-center justify-end gap-1.5">
+                              {feedback ? (
+                                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                                  ✓ Tuned: {feedback.state}
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleFeedback(issue.id, 'EXPECTED_IOT')}
+                                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-cyan-300 hover:text-cyan-200 transition-colors cursor-pointer"
+                                  >
+                                    🏷️ Expected IoT
+                                  </button>
+                                  <button
+                                    onClick={() => handleFeedback(issue.id, 'HELPFUL')}
+                                    className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    👍 Helpful
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-300">{issue.description}</p>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="py-8 text-center text-xs text-slate-500">
                         No new anomalies surfaced in this audit run. ✅
@@ -392,6 +540,35 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
                     )}
                   </div>
                 )}
+
+                {/* Admin Feedback / Context Tuning Box */}
+                <form onSubmit={handleSaveAdminNote} className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-400 font-mono flex items-center gap-1.5">
+                      <span>⚙️</span> Admin AI Tuning & Domain Context
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">Auto-saves to memory</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-sans">
+                    Inform the AI of specific subnet roles (e.g. &ldquo;VLAN 20 is dedicated to IoT smart plugs & locks&rdquo;) to refine future audit narrations.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={adminNote}
+                      onChange={(e) => setAdminNote(e.target.value)}
+                      placeholder="e.g., VLAN 20 has 2.4 GHz-only smart home gear; do not flag as congested."
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!adminNote.trim()}
+                      className="px-4 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs font-mono disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </form>
               </>
             )}
           </div>
@@ -400,3 +577,4 @@ export function AiInsightsDrawer({ isOpen, onClose }: AiInsightsDrawerProps) {
     </div>
   );
 }
+

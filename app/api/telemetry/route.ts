@@ -27,16 +27,20 @@ export async function GET(request: Request) {
     let ssids = undefined;
     let poeDevices = undefined;
     let devices = undefined;
+    let wanStatus = undefined;
+    let events = undefined;
 
     if (status.controllerOnline) {
       try {
-        const [rawClients, topoData, netData, ssidData, poeData, devData] = await Promise.all([
+        const [rawClients, topoData, netData, ssidData, poeData, devData, wanData, eventData] = await Promise.all([
           client.getActiveClients(),
           typeof client.getTopology === 'function' ? client.getTopology().catch(() => []) : Promise.resolve([]),
           typeof client.getLanNetworks === 'function' ? client.getLanNetworks().catch(() => []) : Promise.resolve([]),
           typeof client.getSsids === 'function' ? client.getSsids().catch(() => []) : Promise.resolve([]),
           typeof client.getPoeBudgets === 'function' ? client.getPoeBudgets().catch(() => []) : Promise.resolve([]),
           typeof client.getDevices === 'function' ? client.getDevices().catch(() => []) : Promise.resolve([]),
+          typeof client.getWanStatus === 'function' ? client.getWanStatus().catch(() => undefined) : Promise.resolve(undefined),
+          typeof client.getNocEvents === 'function' ? client.getNocEvents().catch(() => []) : Promise.resolve([]),
         ]);
 
         // Enrich clients with resolved vlanId
@@ -47,6 +51,8 @@ export async function GET(request: Request) {
         topology = topoData;
         poeDevices = poeData;
         devices = devData;
+        wanStatus = wanData;
+        events = eventData;
 
         // Map live client counts into networks & SSIDs
         if (netData && netData.length > 0) {
@@ -125,6 +131,8 @@ export async function GET(request: Request) {
       ...(ssids && { ssids }),
       ...(poeDevices && { poeDevices }),
       ...(devices && { devices }),
+      ...(wanStatus && { wanStatus }),
+      ...(events && { events }),
     };
 
     return NextResponse.json(payload, {

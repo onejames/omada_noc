@@ -71,6 +71,12 @@ describe('ReportsModal Component', () => {
       failedLogins24h: 0,
       activeUsersCount: 3,
     },
+    narration: {
+      historyContext: 'Historical baseline averaged 96/100.',
+      deltaChanges: '+1 new client connected.',
+      currentStatus: 'Optimal performance across all physical nodes.',
+      fullNarrative: 'Full report narration.',
+    },
   };
 
   beforeEach(() => {
@@ -97,6 +103,8 @@ describe('ReportsModal Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Executive Telemetry & SLA Report')).toBeInTheDocument();
+      expect(screen.getByText(/AI Audit Comparative Narration/i)).toBeInTheDocument();
+      expect(screen.getByText(/Historical baseline averaged 96\/100/i)).toBeInTheDocument();
     });
 
     expect(screen.getByText('Workstation-Dev')).toBeInTheDocument();

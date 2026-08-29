@@ -66,6 +66,7 @@ export interface ReportSummaryData {
     failedLogins24h: number;
     activeUsersCount: number;
   };
+  narration?: AiNarration;
 }
 
 export type AiTrendDirection = 'IMPROVED' | 'DEGRADED' | 'STABLE' | 'INITIAL';
@@ -85,6 +86,7 @@ export interface AiIssueItem {
   title: string;
   description: string;
   affectedEntities?: string[];
+  feedbackState?: 'HELPFUL' | 'EXPECTED_IOT' | 'SUPPRESSED';
 }
 
 export interface AiPersistingIssueItem extends AiIssueItem {
@@ -100,6 +102,13 @@ export interface AiSuggestionItem {
   expectedImpact: string;
 }
 
+export interface AiNarration {
+  historyContext: string;
+  deltaChanges: string;
+  currentStatus: string;
+  fullNarrative: string;
+}
+
 export interface AiInsightRecord {
   id: string;
   createdAt: string;
@@ -109,9 +118,11 @@ export interface AiInsightRecord {
   scoreDelta: number;
   trendDirection: AiTrendDirection;
   executiveSummary: string;
+  narration?: AiNarration;
   resolvedIssues: AiIssueItem[];
   persistingIssues: AiPersistingIssueItem[];
   newIssues: AiIssueItem[];
   actionableSuggestions: AiSuggestionItem[];
   metricsSnapshot: Record<string, unknown>;
+  userFeedback?: Record<string, 'HELPFUL' | 'EXPECTED_IOT' | 'SUPPRESSED'>;
 }

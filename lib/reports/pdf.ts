@@ -87,7 +87,27 @@ export function generateNocPdfReport(data: ReportSummaryData): jsPDF {
   doc.text(`${data.infrastructure.aggregateThroughputMbps} Mbps`, margin + 125, currentY + 16);
   doc.text(`${data.infrastructure.totalSessionTrafficGb} GB`, margin + 160, currentY + 16);
 
-  currentY += 28;
+  currentY += 26;
+
+  // Optional AI Comparative Narration Box
+  if (data.narration) {
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, currentY, pageWidth - margin * 2, 20, 1.5, 1.5, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(88, 28, 135); // purple-900
+    doc.text('AI COMPARATIVE DIAGNOSTIC NARRATION:', margin + 4, currentY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(51, 65, 85);
+    const splitNarrative = doc.splitTextToSize(
+      `Baseline: ${data.narration.historyContext.slice(0, 140)}... | Delta: ${data.narration.deltaChanges.slice(0, 140)}...`,
+      pageWidth - margin * 2 - 8
+    );
+    doc.text(splitNarrative, margin + 4, currentY + 10);
+    currentY += 24;
+  }
 
   // 3. Section: Top 5 Real-Time Active Devices
   doc.setFontSize(11);

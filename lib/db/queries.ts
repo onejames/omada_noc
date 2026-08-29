@@ -608,7 +608,10 @@ export async function getRecentAiInsights(limit: number = 5): Promise<AiInsightR
       [limit]
     );
 
-    return res.rows;
+    return res.rows.map((row) => ({
+      ...row,
+      narration: row.narration || row.metricsSnapshot?.narration || undefined,
+    }));
   } catch (err) {
     if (isConnectionOrAuthError(err)) {
       activateMemoryFallback((err as Error).message);
@@ -641,7 +644,11 @@ export async function getLatestAiInsight(): Promise<AiInsightRecord | null> {
     );
 
     if (res.rows.length === 0) return null;
-    return res.rows[0];
+    const row = res.rows[0];
+    return {
+      ...row,
+      narration: row.narration || row.metricsSnapshot?.narration || undefined,
+    };
   } catch (err) {
     if (isConnectionOrAuthError(err)) {
       activateMemoryFallback((err as Error).message);

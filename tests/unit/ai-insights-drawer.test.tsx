@@ -51,6 +51,20 @@ describe('AiInsightsDrawer Component', () => {
           action: 'Prefer 5GHz',
           expectedImpact: 'Improves speed',
         },
+        {
+          id: 'sug-2',
+          priority: 'MEDIUM',
+          title: 'Adjust Minimum RSSI',
+          action: 'Set -78 dBm threshold',
+          expectedImpact: 'Improves roaming',
+        },
+        {
+          id: 'sug-3',
+          priority: 'LOW',
+          title: 'Routine Monitoring',
+          action: 'Continue polling',
+          expectedImpact: 'Maintains health',
+        },
       ],
       metricsSnapshot: {},
     },
@@ -111,7 +125,7 @@ describe('AiInsightsDrawer Component', () => {
     expect(screen.getByText(/Port 4 Burst/i)).toBeInTheDocument();
 
     // Switch to Suggestions Tab
-    fireEvent.click(screen.getByRole('button', { name: /Suggestions \(1\)/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Suggestions/i }));
     expect(screen.getByText(/Enable Band Steering/i)).toBeInTheDocument();
 
     // Switch back to Persisting Tab
@@ -127,7 +141,7 @@ describe('AiInsightsDrawer Component', () => {
     });
 
     // Close button
-    const closeBtn = screen.getByRole('button', { name: '✕' });
+    const closeBtn = screen.getByRole('button', { name: /Close drawer/i });
     fireEvent.click(closeBtn);
   });
 
@@ -314,5 +328,158 @@ describe('AiInsightsDrawer Component', () => {
     await waitFor(() => {
       expect(screen.getAllByText(/STABLE/i).length).toBeGreaterThanOrEqual(1);
     });
+  });
+
+  it('renders 3-part comparative narration and processes feedback buttons and admin notes', async () => {
+    const historyWithNarration = [
+      {
+        ...mockHistory[0],
+        narration: {
+          historyContext: 'Prior 5 inspection cycles maintained 95% average score.',
+          deltaChanges: '+2 IoT smart devices connected on VLAN 20.',
+          currentStatus: 'Optimal posture across all physical nodes.',
+          fullNarrative: 'Full narrative content here.',
+        },
+      },
+    ];
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, history: historyWithNarration }),
+    });
+
+    render(<AiInsightsDrawer isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/AI Audit Comparative Narration/i)).toBeInTheDocument();
+      expect(screen.getByText(/HOW THINGS HAVE BEEN/i)).toBeInTheDocument();
+      expect(screen.getByText(/Prior 5 inspection cycles maintained 95% average score./i)).toBeInTheDocument();
+      expect(screen.getByText(/WHAT HAS CHANGED/i)).toBeInTheDocument();
+      expect(screen.getByText(/\+2 IoT smart devices connected on VLAN 20./i)).toBeInTheDocument();
+      expect(screen.getByText(/CURRENT OPERATIONAL POSTURE/i)).toBeInTheDocument();
+      expect(screen.getByText(/Optimal posture across all physical nodes./i)).toBeInTheDocument();
+    });
+
+    // Test feedback buttons on persisting issue
+    const iotFeedbackBtn = screen.getByRole('button', { name: /Expected IoT/i });
+    fireEvent.click(iotFeedbackBtn);
+    expect(screen.getByText(/✓ Tuned: EXPECTED_IOT/i)).toBeInTheDocument();
+    expect(screen.getByText(/Acknowledged as Expected IoT Segregation/i)).toBeInTheDocument();
+
+    // Switch to New tab and test Helpful button
+    fireEvent.click(screen.getByRole('button', { name: /New \(1\)/i }));
+    const helpfulBtn = screen.getByRole('button', { name: /Helpful/i });
+    fireEvent.click(helpfulBtn);
+    expect(screen.getByText(/✓ Tuned: HELPFUL/i)).toBeInTheDocument();
+
+    // Submit Admin Tuning note
+    const noteInput = screen.getByPlaceholderText(/VLAN 20 has 2.4 GHz-only smart home gear/i);
+    fireEvent.change(noteInput, { target: { value: 'VLAN 20 is dedicated to smart home IoT devices.' } });
+    const saveBtn = screen.getByRole('button', { name: 'Save' });
+    fireEvent.click(saveBtn);
+    expect(screen.getByText(/Tuning Context Applied/i)).toBeInTheDocument();
+
+    // Test form submit with empty value (does nothing)
+    const form = saveBtn.closest('form')!;
+    fireEvent.change(noteInput, { target: { value: '   ' } });
+    fireEvent.submit(form);
+
+    // Test unmount
+    const { unmount } = render(
+      <AiInsightsDrawer
+        isOpen={true}
+        onClose={vi.fn()}
+      />
+    );
+    unmount();
+  });
+
+  it('handles suppress button and new issue IoT tagging', async () => {
+    const historyData = [
+      {
+        ...mockHistory[0],
+        persistingIssues: [
+          {
+            id: 'per-suppress',
+            category: 'RF_SIGNAL',
+            severity: 'WARNING',
+            title: 'Sticky Client',
+            description: 'Needs suppress',
+            firstObservedAt: '2026-08-28T10:00:00Z',
+            persistedAuditCount: 2,
+          },
+        ],
+        newIssues: [
+          {
+            id: 'new-iot-tag',
+            category: 'CHANNEL_CONGESTION',
+            severity: 'WARNING',
+            title: 'IoT Band Usage',
+            description: 'IoT on 2.4G',
+          },
+        ],
+      },
+    ];
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, history: historyData }),
+    });
+
+    render(<AiInsightsDrawer isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Sticky Client')).toBeInTheDocument();
+    });
+
+    // Test Suppress button
+    const suppressBtn = screen.getByRole('button', { name: /Suppress/i });
+    fireEvent.click(suppressBtn);
+    expect(screen.getByText(/Rule tuned and suppressed for future audits/i)).toBeInTheDocument();
+
+    // Switch to New tab and test Expected IoT button
+    fireEvent.click(screen.getByRole('button', { name: /New \(1\)/i }));
+    const expectedIotBtn = screen.getByRole('button', { name: /Expected IoT/i });
+    fireEvent.click(expectedIotBtn);
+    expect(screen.getByText(/✓ Tuned: EXPECTED_IOT/i)).toBeInTheDocument();
+  });
+
+  it('triggers and clears feedback toast timeout callbacks', async () => {
+    vi.useFakeTimers();
+
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: any) => {
+      if (url.includes('/api/admin/insights/history')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, history: mockHistory }),
+        });
+      }
+      if (url.includes('/api/admin/insights/run') && opts?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            insight: { ...mockHistory[0], id: 'ins-new-timer' },
+          }),
+        });
+      }
+      return Promise.reject(new Error('Unknown url'));
+    });
+
+    render(<AiInsightsDrawer isOpen={true} onClose={vi.fn()} />);
+
+    await vi.runAllTimersAsync();
+
+    const triggerBtn = screen.getByRole('button', { name: /Trigger AI Audit/i });
+    fireEvent.click(triggerBtn);
+
+    await vi.runAllTimersAsync();
+
+    const iotBtn = screen.getByRole('button', { name: /Expected IoT/i });
+    fireEvent.click(iotBtn);
+
+    vi.advanceTimersByTime(4000);
+
+    vi.useRealTimers();
   });
 });

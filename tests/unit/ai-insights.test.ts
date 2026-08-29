@@ -186,4 +186,69 @@ describe('Iterative AI Insights Engine (lib/ai/insights.ts)', () => {
     expect(insight.trendDirection).toBe('STABLE');
     expect(insight.executiveSummary).toContain('remains stable');
   });
+
+  it('correctly recognizes IoT clients and avoids false-positive 2.4 GHz congestion warnings', async () => {
+    vi.spyOn(dbQueries, 'getRecentAiInsights').mockResolvedValue([]);
+    vi.spyOn(dbQueries, 'saveAiInsight').mockImplementation(async (data: any) => ({
+      ...data,
+      id: 'insight-iot',
+      createdAt: '2026-08-28T12:00:00Z',
+    }));
+
+    // 6 clients on 2.4GHz on VLAN 20 / IoT SSID
+    const mockIotClients = [
+      { mac: '40:9B:CD:01', name: 'Ring Front Cam', wireless: true, channel: 1, vlanId: 20, ssid: 'TheFarmIot' },
+      { mac: '24:DC:AA:02', name: 'Shelly Smart Plug', wireless: true, channel: 6, vlanId: 20, ssid: 'TheFarmIot' },
+      { mac: 'EC:FA:BB:03', name: 'ESP32 Sensor', wireless: true, channel: 11, vlanId: 20, ssid: 'TheFarmIot' },
+      { mac: 'B0:72:CC:04', name: 'Alexa Echo Dot', wireless: true, channel: 1, vlanId: 20, ssid: 'TheFarmAlexa' },
+      { mac: '11:22:33:05', name: 'Schlage Smart Lock', wireless: true, channel: 6, vlanId: 20, ssid: 'TheFarmIot' },
+      { mac: '11:22:33:06', name: 'Kasa Light Switch', wireless: true, channel: 11, vlanId: 20, ssid: 'TheFarmIot' },
+      { mac: 'AA:BB:CC:07', name: 'MacBook Pro 16', wireless: true, channel: 36, vlanId: 1, ssid: 'TheFarmStrlnk' },
+    ];
+
+    const mockClient = {
+      getNetworkStatus: vi.fn().mockResolvedValue({ siteName: 'The Farm' }),
+      getActiveClients: vi.fn().mockResolvedValue({ clients: mockIotClients, total: 7 }),
+      getDevices: vi.fn().mockResolvedValue([{ mac: 'AP-1', name: 'AP-1', type: 'ap', status: 1 }]),
+      getLanNetworks: vi.fn().mockResolvedValue([{ id: 'net-20', name: 'Smart Home (IoT)', vlan: 20 }]),
+      getSsids: vi.fn().mockResolvedValue([{ id: 'ssid-iot', name: 'TheFarmIot', bandText: '2.4G' }]),
+      getWanStatus: vi.fn().mockResolvedValue({ primaryWan: { latencyMs: 24, online: true } }),
+      getPoeBudgets: vi.fn().mockResolvedValue([{ name: 'SG2218P', poeRemain: 124 }]),
+    };
+
+    const insight = await runComparativeAiInsight('user-1', mockClient as any);
+
+    // Verify it is NOT flagged as a WARNING channel congestion, but as an INFO expected IoT segregation
+    expect(insight.newIssues.some((i) => i.id === 'rf-2g-iot-segregated' && i.severity === 'INFO')).toBe(true);
+    expect(insight.newIssues.some((i) => i.id === 'rf-2g-saturation')).toBe(false);
+
+    // Verify 3-part narration was generated
+    expect(insight.narration).toBeDefined();
+    expect(insight.narration?.historyContext).toBeDefined();
+    expect(insight.narration?.deltaChanges).toBeDefined();
+    expect(insight.narration?.currentStatus).toContain('IoT/smart home clients are cleanly segregated');
+    expect(insight.narration?.fullNarrative).toContain(insight.narration?.currentStatus);
+  });
+
+  it('tests isIotClient helper directly across VLANs, SSIDs, and vendor keywords', async () => {
+    const { isIotClient } = await import('@/lib/ai/insights');
+    const networks = [
+      { id: '1', name: 'Management', vlan: 1, gatewaySubnet: '192.168.1.1/24', dhcpEnable: true },
+      { id: '2', name: 'IoT Devices', vlan: 30, gatewaySubnet: '192.168.30.1/24', dhcpEnable: true },
+    ];
+
+    expect(isIotClient({ mac: 'AA:11', vlanId: 20 } as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', vlanId: 50 } as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', vlanId: 30 } as any, networks as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', ssid: 'iot-dmz' } as any)).toBe(true);
+    expect(isIotClient({ mac: '40:9B:CD:11' } as any)).toBe(true);
+    expect(isIotClient({ mac: 'B0:72:00:11' } as any)).toBe(true);
+    expect(isIotClient({ mac: '24:DC:00:11' } as any)).toBe(true);
+    expect(isIotClient({ mac: 'EC:FA:00:11' } as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', name: 'Philips Hue Bridge' } as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', name: 'Feit Smart Bulb' } as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', name: 'Sonoff Relay' } as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', name: 'Wemo Mini' } as any)).toBe(true);
+    expect(isIotClient({ mac: 'AA:11', name: 'MacBook Pro' } as any)).toBe(false);
+  });
 });

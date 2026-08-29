@@ -11,6 +11,10 @@ import { DocsModal } from './DocsModal';
 import TopologyView from './TopologyView';
 import VlanWifiView from './VlanWifiView';
 import HardwarePoeView from './HardwarePoeView';
+import ThroughputSparkline from './ThroughputSparkline';
+import WanHealthWidget from './WanHealthWidget';
+import ClientInspectorModal from './ClientInspectorModal';
+import NocEventStreamModal from './NocEventStreamModal';
 
 interface DashboardProps {
   initialData: TelemetryResponse;
@@ -25,6 +29,14 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const [sortBy, setSortBy] = useState<'activity' | 'traffic' | 'uptime'>('activity');
   const [activeTab, setActiveTab] = useState<'telemetry' | 'topology' | 'vlan_wifi' | 'hardware_poe'>('telemetry');
   const [isClientsExpanded, setIsClientsExpanded] = useState<boolean>(false);
+  const [selectedClient, setSelectedClient] = useState<OmadaClientDevice | null>(null);
+  const [isEventStreamModalOpen, setIsEventStreamModalOpen] = useState<boolean>(false);
+  const [throughputHistory, setThroughputHistory] = useState<number[]>([
+    Math.round((initialData.status.totalActivityRate || 1024) * 0.75),
+    Math.round((initialData.status.totalActivityRate || 1024) * 0.9),
+    initialData.status.totalActivityRate || 1024,
+  ]);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [lastRefreshedTime, setLastRefreshedTime] = useState<string>(
     new Date(initialData.status.lastUpdated).toLocaleTimeString()
   );
@@ -53,6 +65,9 @@ export default function Dashboard({ initialData }: DashboardProps) {
         const json: TelemetryResponse = await res.json();
         setData(json);
         setLastRefreshedTime(new Date().toLocaleTimeString());
+        if (json.status?.totalActivityRate !== undefined) {
+          setThroughputHistory((prev) => [...prev.slice(-14), json.status.totalActivityRate]);
+        }
         if (json.status?.controllerOnline) {
           setIsConnectionNoticeDismissed(false);
         }
@@ -81,6 +96,33 @@ export default function Dashboard({ initialData }: DashboardProps) {
       setLoading(false);
     }
   }, [sortBy]);
+
+  const handleCopySnapshot = () => {
+    const clientsList = data.allClients || data.topClients || [];
+    const site = data.status.siteName || data.status.siteId;
+    const lines = [
+      `# 📡 Omada NOC Telemetry Diagnostic Snapshot`,
+      `**Site**: ${site} | **Controller**: ${data.status.controllerOnline ? 'ONLINE' : 'OFFLINE'} | **Timestamp**: ${new Date().toISOString()}`,
+      ``,
+      `### 📊 Key Performance Indicators:`,
+      `- **Active Clients**: ${data.status.totalClients} (${data.status.wirelessClients} Wi-Fi, ${data.status.wiredClients} Wired)`,
+      `- **Instant Throughput**: ${formatRate(data.status.totalActivityRate)}`,
+      `- **Total Session Traffic**: ${formatBytes(data.status.totalTrafficDown + data.status.totalTrafficUp)} (↓ ${formatBytes(data.status.totalTrafficDown)} / ↑ ${formatBytes(data.status.totalTrafficUp)})`,
+      ``,
+      `### 🏆 Top 5 Active Clients:`,
+      ...clientsList.slice(0, 5).map((c, i) => `${i + 1}. **${c.name || c.hostName || 'Unnamed'}** (${c.ip}) - Rate: ${formatRate(c.activity)} | Total Vol: ${formatBytes((c.trafficDown || 0) + (c.trafficUp || 0))} | Medium: ${c.wireless ? `Wi-Fi (${c.ssid || 'SSID'})` : 'Wired'}`),
+      ``,
+      `### 🛡️ VLAN Subnets:`,
+      ...(data.networks || []).map((n) => `- **VLAN ${n.vlan}** (${n.name}): ${n.gatewaySubnet} | ${n.clientCount ?? 0} connected clients`),
+      ``,
+      `### ⚡ Hardware PoE Budgets:`,
+      ...(data.poeDevices || []).map((p) => `- **${p.name}** (${p.model}): ${p.poeRemain}W headroom remaining (${p.poePowerUsed ?? 0}W draw)`),
+    ];
+
+    navigator.clipboard?.writeText(lines.join('\n'));
+    setCopyToast('Diagnostic snapshot copied to clipboard!');
+    setTimeout(() => setCopyToast(null), 3000);
+  };
 
   // Handle auto-refresh interval
   useEffect(() => {
@@ -276,6 +318,28 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 Dynamic
               </span>
             </button>
+
+            {/* 8. Live NOC Events Log Button */}
+            <button
+              onClick={() => setIsEventStreamModalOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-800/60 text-slate-200 hover:text-cyan-300 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+            >
+              <span>📜</span>
+              <span>Live Events</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60">
+                {data.events?.length || 5}
+              </span>
+            </button>
+
+            {/* 9. Copy Diagnostic Bundle Snapshot Button */}
+            <button
+              onClick={handleCopySnapshot}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-800/60 text-slate-200 hover:text-emerald-300 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+              title="Copy sanitized markdown diagnostic bundle to clipboard"
+            >
+              <span>📋</span>
+              <span>Snapshot</span>
+            </button>
           </div>
 
           {/* Last Refreshed Indicator */}
@@ -283,6 +347,16 @@ export default function Dashboard({ initialData }: DashboardProps) {
             <span>Last polled: <strong className="text-slate-300">{lastRefreshedTime}</strong></span>
           </div>
         </div>
+
+        {/* Floating Copy Toast Notification */}
+        {copyToast && (
+          <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-cyan-950 border border-cyan-700 text-cyan-300 text-xs font-mono font-bold shadow-2xl animate-in fade-in slide-in-from-bottom duration-150">
+            ✓ {copyToast}
+          </div>
+        )}
+
+        {/* Multi-WAN & Starlink Uplink Telemetry Widget */}
+        <WanHealthWidget wanStatus={data.wanStatus} />
 
         {/* Connection Error / Diagnostic Notice Banner */}
         {!status.controllerOnline && !isConnectionNoticeDismissed && (
@@ -389,24 +463,30 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 </div>
               </div>
 
-              {/* Card 3: Total Activity / Throughput */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Instant Activity</span>
-                  <span className="p-2 rounded-md bg-amber-950/80 text-amber-400 border border-amber-800/40">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </span>
+              {/* Card 3: Total Activity / Throughput with Live Sparkline */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700 transition-colors flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Instant Activity</span>
+                    <span className="p-2 rounded-md bg-amber-950/80 text-amber-400 border border-amber-800/40">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-mono">
+                      {formatRate(status.totalActivityRate)}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-mono">
-                    {formatRate(status.totalActivityRate)}
-                  </span>
-                </div>
-                <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
-                  <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span>Real-time estate bandwidth</span>
+
+                <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span>Real-time Pulse</span>
+                  </div>
+                  <ThroughputSparkline history={throughputHistory} currentRate={status.totalActivityRate} width={130} height={32} />
                 </div>
               </div>
 
@@ -673,7 +753,12 @@ export default function Dashboard({ initialData }: DashboardProps) {
                       (isClientsExpanded ? filteredClients : filteredClients.slice(0, 5)).map((client) => {
                         const totalVolume = (client.trafficDown || 0) + (client.trafficUp || 0);
                         return (
-                          <tr key={client.mac} className="hover:bg-slate-800/40 transition-colors">
+                          <tr
+                            key={client.mac}
+                            onClick={() => setSelectedClient(client)}
+                            className="hover:bg-slate-800/60 cursor-pointer transition-colors group"
+                            title="Click to view deep-dive RF & uplink diagnostics"
+                          >
                             {/* Device Name */}
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2">
@@ -859,6 +944,20 @@ export default function Dashboard({ initialData }: DashboardProps) {
       <DocsModal
         isOpen={isDocsModalOpen}
         onClose={() => setIsDocsModalOpen(false)}
+      />
+
+      {/* Interactive Client Diagnostic Inspector Modal */}
+      <ClientInspectorModal
+        client={selectedClient}
+        networks={data.networks}
+        onClose={() => setSelectedClient(null)}
+      />
+
+      {/* Live NOC Event Stream Modal */}
+      <NocEventStreamModal
+        events={data.events}
+        isOpen={isEventStreamModalOpen}
+        onClose={() => setIsEventStreamModalOpen(false)}
       />
     </div>
   );

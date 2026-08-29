@@ -24,15 +24,21 @@ export default async function Page() {
   let networks = undefined;
   let ssids = undefined;
   let poeDevices = undefined;
+  let devices = undefined;
+  let wanStatus = undefined;
+  let events = undefined;
 
   if (status.controllerOnline) {
     try {
-      const [rawClients, topoData, netData, ssidData, poeData] = await Promise.all([
+      const [rawClients, topoData, netData, ssidData, poeData, devData, wanData, eventData] = await Promise.all([
         client.getActiveClients(),
         typeof client.getTopology === 'function' ? client.getTopology().catch(() => []) : Promise.resolve([]),
         typeof client.getLanNetworks === 'function' ? client.getLanNetworks().catch(() => []) : Promise.resolve([]),
         typeof client.getSsids === 'function' ? client.getSsids().catch(() => []) : Promise.resolve([]),
         typeof client.getPoeBudgets === 'function' ? client.getPoeBudgets().catch(() => []) : Promise.resolve([]),
+        typeof client.getDevices === 'function' ? client.getDevices().catch(() => []) : Promise.resolve([]),
+        typeof client.getWanStatus === 'function' ? client.getWanStatus().catch(() => undefined) : Promise.resolve(undefined),
+        typeof client.getNocEvents === 'function' ? client.getNocEvents().catch(() => []) : Promise.resolve([]),
       ]);
 
       clients = (rawClients || []).map((c) => ({
@@ -41,6 +47,9 @@ export default async function Page() {
       }));
       topology = topoData;
       poeDevices = poeData;
+      devices = devData;
+      wanStatus = wanData;
+      events = eventData;
 
       if (netData && netData.length > 0) {
         networks = netData.map((net) => ({
@@ -95,6 +104,9 @@ export default async function Page() {
     ...(networks && { networks }),
     ...(ssids && { ssids }),
     ...(poeDevices && { poeDevices }),
+    ...(devices && { devices }),
+    ...(wanStatus && { wanStatus }),
+    ...(events && { events }),
   };
 
   return <Dashboard initialData={initialData} />;

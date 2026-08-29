@@ -169,6 +169,32 @@ export function ReportsModal({ isOpen, onClose }: ReportsModalProps) {
                 </div>
               </div>
 
+              {/* AI Audit Comparative Narration Banner */}
+              {report.narration && (
+                <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-950 to-slate-900/90 border border-purple-800/50 shadow-md space-y-3">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                    <span className="text-base">🎙️</span>
+                    <h3 className="text-xs font-bold text-purple-300 uppercase tracking-wider font-mono">
+                      AI Audit Comparative Narration
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
+                      <span className="text-cyan-400 font-bold font-mono text-[10px] block">🕒 HISTORICAL BASELINE</span>
+                      <p className="text-slate-300 text-[11px] leading-relaxed">{report.narration.historyContext}</p>
+                    </div>
+                    <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
+                      <span className="text-amber-400 font-bold font-mono text-[10px] block">🔄 COMPARATIVE DELTA</span>
+                      <p className="text-slate-300 text-[11px] leading-relaxed">{report.narration.deltaChanges}</p>
+                    </div>
+                    <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
+                      <span className="text-emerald-400 font-bold font-mono text-[10px] block">🌐 CURRENT POSTURE</span>
+                      <p className="text-slate-300 text-[11px] leading-relaxed">{report.narration.currentStatus}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Sub-Navigation Tabs */}
               <div className="flex border-b border-slate-800 space-x-1">
                 <button

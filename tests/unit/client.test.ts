@@ -1048,6 +1048,65 @@ describe('OmadaClient', () => {
       expect(poe[0].totalPoePower).toBe(150);
       expect(poe[0].poePowerUsed).toBe(30);
     });
+
+    it('fetches WAN status and NOC event logs', async () => {
+      const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/api/info')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: { omadacId: 'omada-123' } }) };
+        }
+        if (url.endsWith('/api/v2/login')) {
+          return { ok: true, status: 200, headers: { get: () => 'TPOMADA_SESSIONID=sess_123;' }, json: async () => ({ errorCode: 0, result: { token: 'token-123' } }) };
+        }
+        if (url.includes('/api/v2/sites') && !url.includes('/devices') && !url.includes('/events')) {
+          return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [{ siteId: 'site-hex-123', name: 'Default' }] }) };
+        }
+        if (url.includes('/events')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              errorCode: 0,
+              result: {
+                data: [
+                  {
+                    id: 'evt-custom-1',
+                    time: Date.now(),
+                    type: 'roam',
+                    level: 1,
+                    content: 'Fast Roam completed',
+                    extra: 'iPhone 15 roamed to AP2',
+                  },
+                ],
+              },
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({ errorCode: 0, result: [] }) };
+      });
+
+      global.fetch = mockFetch;
+      const client = new OmadaClient();
+      const wan = await client.getWanStatus();
+      expect(wan.primaryWan.providerName).toContain('Starlink');
+      expect(wan.primaryWan.online).toBe(true);
+
+      const events = await client.getNocEvents();
+      expect(events.length).toBeGreaterThanOrEqual(1);
+      expect(events[0].title).toBe('Fast Roam completed');
+    });
+
+    it('falls back to default WAN and events when fetch throws', async () => {
+      const mockFetch = vi.fn().mockRejectedValue(new Error('Network offline'));
+      global.fetch = mockFetch;
+
+      const client = new OmadaClient();
+      const wan = await client.getWanStatus();
+      expect(wan.primaryWan.online).toBe(true);
+
+      const events = await client.getNocEvents();
+      expect(events.length).toBe(5);
+      expect(events[0].type).toBe('roam');
+    });
   });
 
   describe('getOmadaClient singleton', () => {

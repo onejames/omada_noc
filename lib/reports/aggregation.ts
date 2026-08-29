@@ -1,5 +1,5 @@
 import { getOmadaClient, OmadaClient } from '@/lib/omada/client';
-import { listAllUsersWithDetails, getPaginatedLogins } from '@/lib/db/queries';
+import { listAllUsersWithDetails, getPaginatedLogins, getLatestAiInsight } from '@/lib/db/queries';
 import {
   ReportSummaryData,
   TopActiveDevice,
@@ -20,13 +20,14 @@ export async function getReportSummary(
   const client = customClient || getOmadaClient();
 
   // Fetch live network telemetry in parallel
-  const [networkStatus, clientsResult, devicesResult, usersWithDetails, loginsResult] =
+  const [networkStatus, clientsResult, devicesResult, usersWithDetails, loginsResult, latestInsight] =
     await Promise.all([
       client.getNetworkStatus().catch(() => null),
       client.getActiveClients().catch(() => [] as OmadaClientDevice[]),
       client.getDevices('all').catch(() => [] as OmadaDeviceItem[]),
       listAllUsersWithDetails().catch(() => []),
       getPaginatedLogins(1, 100).catch(() => ({ items: [], total: 0, page: 1, pageSize: 100, totalPages: 1 })),
+      getLatestAiInsight().catch(() => null),
     ]);
 
   const clients: OmadaClientDevice[] = Array.isArray(clientsResult)
@@ -211,5 +212,6 @@ export async function getReportSummary(
       failedLogins24h,
       activeUsersCount: usersWithDetails.length,
     },
+    narration: latestInsight?.narration || undefined,
   };
 }

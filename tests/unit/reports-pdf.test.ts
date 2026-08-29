@@ -109,6 +109,12 @@ describe('PDF Generation Engine (lib/reports/pdf.ts)', () => {
     const roseData: ReportSummaryData = {
       ...amberData,
       networkHealthScore: 60, // rose
+      narration: {
+        historyContext: 'Baseline averaged 90/100.',
+        deltaChanges: '3 new clients joined.',
+        currentStatus: 'Optimal posture.',
+        fullNarrative: 'Full narrative text.',
+      },
     };
     const docRose = generateNocPdfReport(roseData);
     expect(docRose).toBeDefined();

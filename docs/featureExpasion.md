@@ -103,3 +103,31 @@ Reduce visual clutter on the primary dashboard by defaulting the client list to 
 * **Default State:** Collapsed to Top 5 high-priority devices with active traffic rates.
 * **Expanded State:** Full paginated / searchable list of all 69+ connected clients with medium filters (Wireless / Wired / All).
 * **Toggle Control:** Accessible button displaying current count, sort criteria, and chevron transition.
+
+---
+
+## 🚀 Part 5: Enterprise Telemetry & NOC Suite Extensions
+
+### 1. Interactive Client Diagnostic Deep-Dive (`ClientInspectorModal.tsx`)
+* **Click-to-Inspect:** Clicking any device row opens a high-fidelity modal drawer.
+* **RF Signal Meter:** RSSI signal gauge (`-58 dBm [Excellent]`), Signal-to-Noise Ratio (SNR), and Wi-Fi Generation badge (Wi-Fi 7 / 6 AX / 5 AC / Gigabit Ethernet).
+* **End-to-End Uplink Trace:** Visual trace path: `Client` ➔ `Access Point (SSID)` ➔ `Switch (Port)` ➔ `Gateway (ER7206)`.
+* **Vendor Identification:** Automatic OUI resolution (Apple, Ring, Amazon, Espressif, Samsung, Google, TP-Link).
+* **Copy Actions:** 1-click clipboard copying of IP, MAC address, and full specs.
+
+### 2. Live Rolling Throughput Sparkline (`ThroughputSparkline.tsx`)
+* **Dynamic Curve:** Real-time SVG polyline tracking rolling throughput intervals with gradient area fill.
+* **Peak Indicator:** Live peak rate tracking and active pulsing beacon.
+
+### 3. Dual-WAN & Starlink Health Monitoring (`WanHealthWidget.tsx`)
+* **Multi-WAN Failover Status:** Primary Starlink Satellite Uplink + Secondary LTE Backup.
+* **Uplink Metrics:** Live upstream ping latency (`24 ms`), 0.0% packet loss, public/gateway IPs, and DNS servers (`1.1.1.1, 8.8.8.8`).
+* **Bandwidth Rates:** Live download / upload throughput telemetry.
+
+### 4. Live NOC Event Stream (`NocEventStreamModal.tsx`)
+* **Real-time Event Feed:** 802.11k/v fast roaming handoffs, DHCP lease allocations per VLAN, high-bandwidth hog alerts, and PoE budget state changes.
+* **Filterable Channels:** Categorized by Roaming, DHCP, Alerts, and System with live text search.
+
+### 5. 1-Click NOC Diagnostic Snapshot Export
+* **Instant Markdown Snapshot:** Single-click `"📋 Snapshot"` action button that copies a comprehensive, sanitized diagnostic summary of controller status, KPIs, top devices, VLANs, and PoE budgets to the clipboard with visual toast feedback.
+

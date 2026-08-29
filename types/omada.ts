@@ -186,6 +186,45 @@ export interface PoeDeviceBudget {
   status: number;
 }
 
+export interface WanPortInfo {
+  port: number;
+  name: string;
+  type: 'wan' | 'wan/lan';
+  online: boolean;
+  ip: string;
+  gateway: string;
+  dns: string[];
+  proto: 'DHCP' | 'Static' | 'PPPoE';
+  latencyMs: number;
+  packetLossPercent: number;
+  rxRate: number; // Bytes/sec
+  txRate: number; // Bytes/sec
+  uptime: number; // seconds
+  providerName?: string;
+  isPrimary?: boolean;
+}
+
+export interface WanStatusInfo {
+  gatewayModel: string;
+  primaryWan: WanPortInfo;
+  backupWan?: WanPortInfo;
+  dualWanMode: 'Failover' | 'Load Balancing';
+  overallUptimePercent: number;
+}
+
+export interface NocEventItem {
+  id: string;
+  timestamp: string;
+  type: 'roam' | 'dhcp' | 'alert' | 'poe' | 'system';
+  severity: 'info' | 'warning' | 'critical' | 'success';
+  title: string;
+  detail: string;
+  clientMac?: string;
+  clientName?: string;
+  apName?: string;
+  vlanId?: number;
+}
+
 export interface TelemetryResponse {
   status: NetworkStatusSummary;
   topClients: OmadaClientDevice[];
@@ -195,4 +234,7 @@ export interface TelemetryResponse {
   networks?: OmadaLanNetwork[];
   ssids?: OmadaSsidSetting[];
   poeDevices?: PoeDeviceBudget[];
+  wanStatus?: WanStatusInfo;
+  events?: NocEventItem[];
+  error?: string;
 }

@@ -19,6 +19,14 @@ interface ProfileWidgetProps {
   align?: 'left' | 'right';
 }
 
+export function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return (name[0] || 'U').toUpperCase();
+}
+
 export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -100,13 +108,7 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
     );
   }
 
-  const initials = (user.fullName || user.username || 'U')
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
-
+  const initials = getInitials(user.fullName || user.username || 'U');
   const alignmentClass = align === 'left' ? 'left-0' : 'right-0';
 
   return (
