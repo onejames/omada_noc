@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TelemetryResponse, OmadaClientDevice } from '@/types/omada';
 import { formatBytes, formatRate, formatUptime, formatMac } from '@/lib/omada/formatters';
 import ProfileWidget from './ProfileWidget';
@@ -42,6 +42,11 @@ export default function Dashboard({ initialData }: DashboardProps) {
   );
   const [isReportsModalOpen, setIsReportsModalOpen] = useState<boolean>(false);
   const [isAiInsightsDrawerOpen, setIsAiInsightsDrawerOpen] = useState<boolean>(false);
+  const isAiInsightsDrawerOpenRef = useRef<boolean>(isAiInsightsDrawerOpen);
+  useEffect(() => {
+    isAiInsightsDrawerOpenRef.current = isAiInsightsDrawerOpen;
+  }, [isAiInsightsDrawerOpen]);
+
   const [isDocsModalOpen, setIsDocsModalOpen] = useState<boolean>(false);
   const [isConnectionNoticeDismissed, setIsConnectionNoticeDismissed] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<'ADMIN' | 'USER' | null>(null);
@@ -71,7 +76,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           engineType: 'NLG_ALGORITHMIC',
           startTime: Date.now(),
           result: json.insight,
-          isUnread: true,
+          isUnread: !isAiInsightsDrawerOpenRef.current,
         });
       }
     } catch (err: unknown) {
@@ -80,7 +85,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
         engineType: 'NLG_ALGORITHMIC',
         startTime: Date.now(),
         error: err instanceof Error ? err.message : 'Failed to run NLG audit.',
-        isUnread: true,
+        isUnread: !isAiInsightsDrawerOpenRef.current,
       });
     }
   };
@@ -105,7 +110,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           engineType: 'DEEPSEEK_AGENT',
           startTime: Date.now(),
           result: json.insight,
-          isUnread: true,
+          isUnread: !isAiInsightsDrawerOpenRef.current,
         });
       }
     } catch (err: unknown) {
@@ -114,7 +119,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
         engineType: 'DEEPSEEK_AGENT',
         startTime: Date.now(),
         error: err instanceof Error ? err.message : 'Failed to run DeepSeek LLM Agent audit. Ensure Ollama is active.',
-        isUnread: true,
+        isUnread: !isAiInsightsDrawerOpenRef.current,
       });
     }
   };
@@ -130,7 +135,15 @@ export default function Dashboard({ initialData }: DashboardProps) {
 
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (res.status === 401) {
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then((json) => {
         if (json?.user?.role) {
           setUserRole(json.user.role);
@@ -154,6 +167,12 @@ export default function Dashboard({ initialData }: DashboardProps) {
           setIsConnectionNoticeDismissed(false);
         }
       } else {
+        if (res.status === 401) {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login?reason=inactivity';
+          }
+          return;
+        }
         const errorJson = await res.json().catch(() => ({}));
         setData((prev) => ({
           ...prev,
@@ -1219,7 +1238,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
       {/* Continuous AI & NLG Insights Drawer (Admin) */}
       <AiInsightsDrawer
         isOpen={isAiInsightsDrawerOpen}
-        onClose={() => setIsAiInsightsDrawerOpen(false)}
+        onClose={() => {
+          setIsAiInsightsDrawerOpen(false);
+          setBackgroundAudit((prev) => ({ ...prev, isUnread: false }));
+        }}
         backgroundAudit={backgroundAudit}
         onTriggerNlgAudit={handleTriggerNlgAudit}
         onTriggerAgentAudit={handleTriggerAgentAudit}

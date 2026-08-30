@@ -118,13 +118,25 @@ describe('Admin API Route Handlers', () => {
       });
       expect((await createUserHandler(req2)).status).toBe(400);
 
-      // 3. Duplicate user
-      vi.spyOn(dbQueries, 'findUserByEmailOrUsername').mockResolvedValue({} as any);
+      // 3. Duplicate user (email or username)
+      vi.spyOn(dbQueries, 'findUserByEmailOrUsername').mockImplementation(async (identifier: string) => {
+        if (identifier === 'dup_user' || identifier === 'dup@test.com') {
+          return { id: 'existing', username: 'dup_user', email: 'dup@test.com' } as any;
+        }
+        return null;
+      });
+
       const req3 = new Request('http://localhost/api/admin/users', {
         method: 'POST',
-        body: JSON.stringify({ username: 'dup', email: 'dup@test.com', password: 'Password123!' }),
+        body: JSON.stringify({ username: 'dup_user', email: 'other@test.com', password: 'Password123!' }),
       });
       expect((await createUserHandler(req3)).status).toBe(409);
+
+      const req4 = new Request('http://localhost/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({ username: 'unique_user', email: 'dup@test.com', password: 'Password123!' }),
+      });
+      expect((await createUserHandler(req4)).status).toBe(409);
     });
   });
 

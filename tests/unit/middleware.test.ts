@@ -48,7 +48,7 @@ describe('Next.js Edge Middleware Protection', () => {
     expect(res2.headers.get('location')).toBe('http://localhost:3000/');
   });
 
-  it('allows public auth routes /api/auth/login and /api/auth/logout', async () => {
+  it('allows public auth routes and health probe /api/health', async () => {
     const req1 = createRequest('/api/auth/login');
     const res1 = await proxy(req1);
     expect(res1.status).toBe(200);
@@ -56,6 +56,10 @@ describe('Next.js Edge Middleware Protection', () => {
     const req2 = createRequest('/api/auth/logout');
     const res2 = await proxy(req2);
     expect(res2.status).toBe(200);
+
+    const req3 = createRequest('/api/health');
+    const res3 = await proxy(req3);
+    expect(res3.status).toBe(200);
   });
 
   it('redirects unauthenticated UI requests to /login', async () => {

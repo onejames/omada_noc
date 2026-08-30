@@ -227,20 +227,11 @@ export function AiInsightsDrawer({
             </div>
 
             <div className="flex items-center gap-2">
-              {(isNlgRunning || isAgentRunning) && (
-                <button
-                  onClick={onClose}
-                  className="px-2.5 py-1 rounded-xl bg-purple-950/90 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Minimize and continue running in background"
-                >
-                  <span>⬇️</span>
-                  <span>Push to Background</span>
-                </button>
-              )}
               <button
                 onClick={onClose}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
                 aria-label="Close drawer"
+                title="Close drawer"
               >
                 ✕
               </button>
@@ -259,63 +250,114 @@ export function AiInsightsDrawer({
             {/* Dual Mode Action Execution Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Option 1: Deterministic NLG Audit */}
-              <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-900/50 flex flex-col justify-between space-y-3">
+              <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                isNlgRunning
+                  ? 'bg-gradient-to-br from-cyan-950/80 via-slate-900 to-slate-950 border-cyan-500/80 shadow-lg shadow-cyan-950/50 ring-1 ring-cyan-500/40'
+                  : 'bg-slate-950/80 border-cyan-900/50'
+              }`}>
                 <div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300 font-mono">
-                    <span>⚡</span>
-                    <span>DETERMINISTIC NLG</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300 font-mono">
+                      <span>⚡</span>
+                      <span>DETERMINISTIC NLG</span>
+                    </div>
+                    {isNlgRunning && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-600 animate-pulse font-bold">
+                        RUNNING
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">
                     Zero-latency edge rules: RSSI thresholds, IoT VLAN 20 matching & math scoring.
                   </p>
                 </div>
-                <button
-                  onClick={handleRunNlgAudit}
-                  disabled={isNlgRunning || isAgentRunning}
-                  className="w-full py-2 px-3 rounded-xl bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold font-mono transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isNlgRunning ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                      <span>Auditing Rules...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>⚡</span>
-                      <span>Trigger NLG Audit</span>
-                    </>
-                  )}
-                </button>
+
+                {isNlgRunning ? (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-2 text-xs font-mono text-cyan-300 bg-cyan-950/60 p-2 rounded-xl border border-cyan-800/60">
+                      <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                      <span className="truncate">Auditing edge telemetry rules...</span>
+                    </div>
+                    <button
+                      onClick={onClose}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold font-mono transition-all shadow-md shadow-cyan-500/20 cursor-pointer flex items-center justify-center gap-2 border border-cyan-400/40"
+                      title="Minimize drawer and let audit finish in the background"
+                    >
+                      <span>⬇️</span>
+                      <span>Push to Background</span>
+                    </button>
+                    <p className="text-[10px] text-center text-slate-500 font-mono">
+                      Alerts when audit completes
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleRunNlgAudit}
+                    disabled={isAgentRunning}
+                    className="w-full py-2.5 px-3 rounded-xl bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-200 text-xs font-bold font-mono transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <span>⚡</span>
+                    <span>Trigger NLG Audit</span>
+                  </button>
+                )}
               </div>
 
               {/* Option 2: Real DeepSeek-R1 Neural Agent */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/60 to-slate-950 border border-purple-700/60 flex flex-col justify-between space-y-3 shadow-lg shadow-purple-950/30">
+              <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                isAgentRunning
+                  ? 'bg-gradient-to-br from-purple-950/90 via-slate-900 to-slate-950 border-purple-500 shadow-xl shadow-purple-950/60 ring-2 ring-purple-500/50'
+                  : 'bg-gradient-to-br from-purple-950/60 to-slate-950 border-purple-700/60 shadow-lg shadow-purple-950/30'
+              }`}>
                 <div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300 font-mono">
-                    <span>🧠</span>
-                    <span>DEEPSEEK-R1 AGENT</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-300 font-mono">
+                      <span>🧠</span>
+                      <span>DEEPSEEK-R1 AGENT</span>
+                    </div>
+                    {isAgentRunning && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-500 animate-pulse font-bold">
+                        REASONING
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">
                     Real local neural inference via Ollama (<code>deepseek-r1:7b</code>) with Chain-of-Thought.
                   </p>
                 </div>
-                <button
-                  onClick={handleRunLlmAgentAudit}
-                  disabled={isNlgRunning || isAgentRunning}
-                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold font-mono transition-all shadow-md shadow-purple-500/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isAgentRunning ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Agent Thinking...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>🧠</span>
-                      <span>Run DeepSeek Agent</span>
-                    </>
-                  )}
-                </button>
+
+                {isAgentRunning ? (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-2 text-xs font-mono text-purple-300 bg-purple-950/70 p-2.5 rounded-xl border border-purple-700/70">
+                      <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                      <div className="truncate">
+                        <span className="font-bold">DeepSeek-R1</span> reasoning on telemetry...
+                      </div>
+                    </div>
+                    <button
+                      onClick={onClose}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white text-xs font-black font-mono tracking-wide transition-all shadow-xl shadow-purple-900/50 border border-purple-400/60 animate-pulse cursor-pointer flex items-center justify-center gap-2 group"
+                      title="Send reasoning to background and continue using the NOC dashboard"
+                    >
+                      <span className="text-base group-hover:translate-y-0.5 transition-transform">⬇️</span>
+                      <span>PUSH TO BACKGROUND</span>
+                      <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-black/40 border border-white/20">
+                        Active
+                      </span>
+                    </button>
+                    <p className="text-[10px] text-center text-purple-300/80 font-mono">
+                      Minimizes to floating badge • Alert chime when done
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleRunLlmAgentAudit}
+                    disabled={isNlgRunning}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold font-mono transition-all shadow-md shadow-purple-500/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>🧠</span>
+                    <span>Run DeepSeek Agent</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -389,28 +431,33 @@ export function AiInsightsDrawer({
 
                   {/* Trajectory History Sparkline Bars */}
                   {effectiveHistory.length > 1 && (
-                    <div className="pt-3 border-t border-slate-800/80 space-y-2">
-                      <div className="text-[11px] font-mono text-slate-400">AUDIT SCORE TRAJECTORY (PAST {effectiveHistory.length} AUDITS)</div>
-                      <div className="flex items-end space-x-2 h-16 pt-2">
+                    <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+                      <div className="flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-slate-400 font-semibold">AUDIT SCORE TRAJECTORY (PAST {effectiveHistory.length} AUDITS)</span>
+                        <span className="text-slate-500 text-[10px]">Historic Trend</span>
+                      </div>
+                      <div className="flex items-end space-x-2 h-20 pt-3 pb-2 px-3 bg-slate-900/80 rounded-xl border border-slate-800">
                         {effectiveHistory.slice(0, 8).reverse().map((audit, idx) => {
                           const heightPct = Math.max(15, audit.healthScore);
                           const barColor =
                             audit.healthScore >= 90
-                              ? 'bg-emerald-500'
+                              ? 'bg-emerald-500 shadow-emerald-500/20'
                               : audit.healthScore >= 75
-                              ? 'bg-cyan-500'
+                              ? 'bg-cyan-500 shadow-cyan-500/20'
                               : audit.healthScore >= 60
-                              ? 'bg-amber-500'
-                              : 'bg-rose-500';
+                              ? 'bg-amber-500 shadow-amber-500/20'
+                              : 'bg-rose-500 shadow-rose-500/20';
 
                           return (
-                            <div key={audit.id || idx} className="flex-1 flex flex-col items-center gap-1">
-                              <span className="text-[10px] font-mono text-slate-400">{audit.healthScore}</span>
-                              <div
-                                className={`w-full rounded-t-md transition-all duration-500 ${barColor}`}
-                                style={{ height: `${heightPct}%` }}
-                                title={`Audit at ${new Date(audit.createdAt).toLocaleTimeString()}: Score ${audit.healthScore}`}
-                              />
+                            <div key={audit.id || idx} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
+                              <span className="text-[10px] font-mono text-slate-300 font-bold">{audit.healthScore}</span>
+                              <div className="w-full h-10 bg-slate-950/90 rounded-t-md flex items-end overflow-hidden border border-slate-800/80">
+                                <div
+                                  className={`w-full rounded-t-md transition-all duration-500 ${barColor}`}
+                                  style={{ height: `${heightPct}%` }}
+                                  title={`Audit at ${new Date(audit.createdAt).toLocaleTimeString()}: Score ${audit.healthScore}/100`}
+                                />
+                              </div>
                             </div>
                           );
                         })}
@@ -430,19 +477,27 @@ export function AiInsightsDrawer({
                     </span>
                   </div>
 
-                  <div className="space-y-2 text-xs font-mono leading-relaxed text-slate-300">
-                    <p>
-                      <strong className="text-purple-300">1. HOW THINGS HAVE BEEN (PAST CONTEXT): </strong>
-                      {latest.narration?.historyContext || 'No previous baseline on record.'}
-                    </p>
-                    <p>
-                      <strong className="text-cyan-300">2. WHAT HAS CHANGED (DELTA ANOMALIES): </strong>
-                      {latest.narration?.deltaChanges || 'Zero state modifications detected.'}
-                    </p>
-                    <p>
-                      <strong className="text-emerald-300">3. CURRENT OPERATIONAL POSTURE: </strong>
-                      {latest.narration?.currentStatus || latest.executiveSummary}
-                    </p>
+                  <div className="space-y-2.5 text-xs font-mono leading-relaxed">
+                    <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-800/60 space-y-1">
+                      <div className="text-[11px] font-bold text-purple-300 uppercase tracking-wider">
+                        1. HOW THINGS HAVE BEEN (PAST CONTEXT)
+                      </div>
+                      <p className="text-slate-200">{latest.narration?.historyContext || 'No previous baseline on record.'}</p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-800/60 space-y-1">
+                      <div className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">
+                        2. WHAT HAS CHANGED (DELTA ANOMALIES)
+                      </div>
+                      <p className="text-slate-200">{latest.narration?.deltaChanges || 'Zero state modifications detected.'}</p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-800/60 space-y-1">
+                      <div className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
+                        3. CURRENT OPERATIONAL POSTURE
+                      </div>
+                      <p className="text-slate-200">{latest.narration?.currentStatus || latest.executiveSummary}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -456,7 +511,7 @@ export function AiInsightsDrawer({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Persisting ({latest.persistingIssues.length})
+                    Persisting ({(latest.persistingIssues || []).length})
                   </button>
                   <button
                     onClick={() => setActiveTab('resolved')}
@@ -466,7 +521,7 @@ export function AiInsightsDrawer({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Resolved ({latest.resolvedIssues.length})
+                    Resolved ({(latest.resolvedIssues || []).length})
                   </button>
                   <button
                     onClick={() => setActiveTab('new')}
@@ -476,7 +531,7 @@ export function AiInsightsDrawer({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    New ({latest.newIssues.length})
+                    New ({(latest.newIssues || []).length})
                   </button>
                   <button
                     onClick={() => setActiveTab('suggestions')}
@@ -486,7 +541,7 @@ export function AiInsightsDrawer({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Suggestions ({latest.actionableSuggestions.length})
+                    Suggestions ({(latest.actionableSuggestions || []).length})
                   </button>
                 </div>
 

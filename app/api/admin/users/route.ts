@@ -42,8 +42,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const existing = await findUserByEmailOrUsername(email);
-    if (existing) {
+    const existingEmail = await findUserByEmailOrUsername(email);
+    const existingUsername = await findUserByEmailOrUsername(username);
+    if (existingEmail || existingUsername) {
       return NextResponse.json(
         { error: 'A user with this email or username already exists.' },
         { status: 409 }

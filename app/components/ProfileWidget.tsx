@@ -32,25 +32,21 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  let router: ReturnType<typeof useRouter> | null = null;
-  let pathname: string | null = null;
-
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    router = useRouter();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    pathname = usePathname();
-  } catch {
-    // Graceful fallback during isolated unit testing
-  }
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Fetch current user session
   useEffect(() => {
+    let isMounted = true;
     async function fetchUser() {
       try {
         const res = await fetch('/api/auth/me');
-        if (res.ok) {
+        if (res.status === 401 && pathname !== '/login') {
+          if (isMounted) setLoading(false);
+          router.push('/login');
+          return;
+        }
+        if (res.ok && isMounted) {
           const data = await res.json();
           if (data.authenticated && data.user) {
             setUser(data.user);
@@ -59,11 +55,16 @@ export default function ProfileWidget({ align = 'right' }: ProfileWidgetProps) {
       } catch (err) {
         console.error('Error fetching user profile:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     fetchUser();
+    return () => {
+      isMounted = false;
+    };
   }, [pathname]);
 
   // Close dropdown on outside click

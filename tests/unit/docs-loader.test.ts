@@ -41,6 +41,7 @@ describe('Documentation Loader Module (lib/docs/loader.ts)', () => {
 
     // Create several test markdown files
     fs.writeFileSync(path.join(tempDir, 'PRD.md'), '# Product Requirements Document\n\nOverview of the system.');
+    fs.writeFileSync(path.join(tempDir, 'featureExpansion.md'), '# Hardware & Spectrum\n\nExpansion and spectrum.');
     fs.writeFileSync(path.join(tempDir, 'authentication.md'), '# Security & RBAC Guide\n\nSecurity tokens and hashing.');
     fs.writeFileSync(path.join(tempDir, 'reporting.md'), '# Executive Reporting\n\nAggregations and telemetry.');
     fs.writeFileSync(path.join(tempDir, 'techStack.md'), '# Tech Stack\n\nNext.js and Vitest.');
@@ -49,17 +50,19 @@ describe('Documentation Loader Module (lib/docs/loader.ts)', () => {
     fs.writeFileSync(path.join(tempDir, 'customGuide.md'), 'General title without hash\n\nSome custom content.');
 
     const docs = getAllDocs(tempDir);
-    expect(docs.length).toBe(7);
+    expect(docs.length).toBe(8);
 
-    // Verify ordering follows priority map (prd -> auth -> reporting -> techstack -> implementationplan -> posting -> custom)
+    // Verify ordering follows priority map (prd -> featureexpansion -> auth -> reporting -> techstack -> implementationplan -> posting -> custom)
     expect(docs[0].slug).toBe('prd');
-    expect(docs[1].slug).toBe('authentication');
-    expect(docs[2].slug).toBe('reporting');
-    expect(docs[3].slug).toBe('techstack');
-    expect(docs[4].slug).toBe('implementationplan');
-    expect(docs[5].slug).toBe('posting');
-    expect(docs[6].slug).toBe('customguide');
-    expect(docs[6].category).toBe('General Documentation');
+    expect(docs[1].slug).toBe('featureexpansion');
+    expect(docs[1].category).toBe('Hardware & Spectrum');
+    expect(docs[2].slug).toBe('authentication');
+    expect(docs[3].slug).toBe('reporting');
+    expect(docs[4].slug).toBe('techstack');
+    expect(docs[5].slug).toBe('implementationplan');
+    expect(docs[6].slug).toBe('posting');
+    expect(docs[7].slug).toBe('customguide');
+    expect(docs[7].category).toBe('General Documentation');
 
     // Clean up
     fs.rmSync(tempDir, { recursive: true, force: true });

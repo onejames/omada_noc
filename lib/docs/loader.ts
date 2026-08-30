@@ -8,11 +8,13 @@ const PRIORITY_MAP: Record<string, number> = {
   readme: 0,
   overview: 0,
   prd: 1,
-  authentication: 2,
-  reporting: 3,
-  techstack: 4,
-  implementationplan: 5,
-  posting: 6,
+  featureexpansion: 2,
+  featureexpasion: 2,
+  authentication: 3,
+  reporting: 4,
+  techstack: 5,
+  implementationplan: 6,
+  posting: 7,
 };
 
 /**
@@ -60,6 +62,9 @@ function categorizeDoc(slug: string): string {
       return 'System Overview';
     case 'prd':
       return 'Product & Strategy';
+    case 'featureexpansion':
+    case 'featureexpasion':
+      return 'Hardware & Spectrum';
     case 'authentication':
       return 'Security & RBAC';
     case 'reporting':

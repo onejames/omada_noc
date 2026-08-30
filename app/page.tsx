@@ -1,9 +1,9 @@
-import React from 'react';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import Dashboard from '@/app/components/Dashboard';
 import { getOmadaClient } from '@/lib/omada/client';
-import { getCurrentSession } from '@/lib/auth/session';
-import { getUserDeviceTags } from '@/lib/db/queries';
+import { getCurrentSession, SESSION_COOKIE_NAME } from '@/lib/auth/session';
+import { findUserById, getUserDeviceTags } from '@/lib/db/queries';
 import { TelemetryResponse, OmadaClientDevice } from '@/types/omada';
 import { resolveClientVlan } from '@/lib/omada/formatters';
 
@@ -12,6 +12,19 @@ export const dynamic = 'force-dynamic';
 export default async function Page() {
   const session = await getCurrentSession();
   if (!session) {
+    redirect('/login');
+    return null;
+  }
+
+  // Verify the user still exists in the database (handles DB recreation / orphaned JWTs)
+  const dbUser = await findUserById(session.userId);
+  if (!dbUser) {
+    try {
+      const cookieStore = await cookies();
+      cookieStore.delete(SESSION_COOKIE_NAME);
+    } catch {
+      // Ignore cookie clear error if headers were already sent
+    }
     redirect('/login');
     return null;
   }

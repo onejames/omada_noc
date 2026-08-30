@@ -12,10 +12,32 @@ vi.mock('next/navigation', () => ({
 describe('Server Page (app/page.tsx)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(dbQueries, 'findUserById').mockResolvedValue({
+      id: 'u-admin',
+      username: 'admin',
+      email: 'admin@omadanoc.com',
+      role: 'ADMIN',
+      createdAt: '',
+      updatedAt: '',
+    });
   });
 
   it('redirects to /login if user is unauthenticated', async () => {
     vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue(null);
+
+    await Page();
+    expect(navigationModule.redirect).toHaveBeenCalledWith('/login');
+  });
+
+  it('redirects to /login if session user is no longer found in the database', async () => {
+    vi.spyOn(sessionModule, 'getCurrentSession').mockResolvedValue({
+      userId: 'u-deleted',
+      username: 'ghost',
+      email: 'ghost@test.com',
+      role: 'USER',
+      lastActive: Date.now(),
+    });
+    vi.spyOn(dbQueries, 'findUserById').mockResolvedValue(null);
 
     await Page();
     expect(navigationModule.redirect).toHaveBeenCalledWith('/login');

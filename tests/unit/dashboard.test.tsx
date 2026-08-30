@@ -585,6 +585,11 @@ describe('Dashboard Client Component', () => {
   });
 
   it('handles background NLG audit lifecycle and renders floating badge with view/dismiss actions', async () => {
+    let nlgResolver: any;
+    const nlgPromise = new Promise((resolve) => {
+      nlgResolver = resolve;
+    });
+
     global.fetch = vi.fn().mockImplementation(async (url: string, opts?: any) => {
       if (url.includes('/api/auth/me')) {
         return {
@@ -601,6 +606,7 @@ describe('Dashboard Client Component', () => {
         };
       }
       if (url.includes('/api/admin/insights/run') && opts?.method === 'POST') {
+        await nlgPromise;
         return {
           ok: true,
           status: 200,
@@ -635,12 +641,21 @@ describe('Dashboard Client Component', () => {
     expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
 
     // Click Trigger NLG Audit inside drawer
-    const triggerBtn = screen.getByRole('button', { name: /Trigger NLG Audit/i });
-    fireEvent.click(triggerBtn);
+    await act(async () => {
+      const triggerBtn = screen.getByRole('button', { name: /Trigger NLG Audit/i });
+      fireEvent.click(triggerBtn);
+    });
 
-    // Close drawer to see floating badge in background
-    const closeBtn = screen.getByRole('button', { name: /Close drawer/i });
-    fireEvent.click(closeBtn);
+    // Minimize drawer with Push to Background button
+    await act(async () => {
+      const pushBgBtn = screen.getByRole('button', { name: /Push to Background/i });
+      fireEvent.click(pushBgBtn);
+    });
+
+    // Resolve the running audit in background
+    await act(async () => {
+      nlgResolver();
+    });
 
     // Wait for completion floating badge to appear
     await waitFor(() => {
@@ -649,12 +664,19 @@ describe('Dashboard Client Component', () => {
     });
 
     // Click View on floating badge to reopen drawer
-    const viewBtn = screen.getByRole('button', { name: /^View$/i });
-    fireEvent.click(viewBtn);
+    await act(async () => {
+      const viewBtn = screen.getByRole('button', { name: /^View$/i });
+      fireEvent.click(viewBtn);
+    });
     expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
   });
 
   it('handles background DeepSeek Agent audit lifecycle with error floating badge', async () => {
+    let errorResolver: any;
+    const slowErrorPromise = new Promise((resolve) => {
+      errorResolver = resolve;
+    });
+
     global.fetch = vi.fn().mockImplementation(async (url: string, opts?: any) => {
       if (url.includes('/api/auth/me')) {
         return {
@@ -671,11 +693,7 @@ describe('Dashboard Client Component', () => {
         };
       }
       if (url.includes('/api/admin/insights/agent') && opts?.method === 'POST') {
-        return {
-          ok: false,
-          status: 500,
-          json: async () => ({ error: 'Ollama instance unreachable' }),
-        };
+        return slowErrorPromise;
       }
       return { ok: true, status: 200, json: async () => mockInitialData };
     });
@@ -686,13 +704,29 @@ describe('Dashboard Client Component', () => {
       expect(screen.getByRole('button', { name: /AI Insights/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /AI Insights/i }));
-    const runAgentBtn = screen.getByRole('button', { name: /Run DeepSeek Agent/i });
-    fireEvent.click(runAgentBtn);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /AI Insights/i }));
+    });
+
+    await act(async () => {
+      const runAgentBtn = screen.getByRole('button', { name: /Run DeepSeek Agent/i });
+      fireEvent.click(runAgentBtn);
+    });
 
     // Minimize drawer with Push to Background button
-    const pushBgBtn = screen.getByRole('button', { name: /Push to Background/i });
-    fireEvent.click(pushBgBtn);
+    await act(async () => {
+      const pushBgBtn = screen.getByRole('button', { name: /Push to Background/i });
+      fireEvent.click(pushBgBtn);
+    });
+
+    // Resolve error promise after pushing to background
+    await act(async () => {
+      errorResolver({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'Ollama instance unreachable' }),
+      });
+    });
 
     // Wait for error floating badge
     await waitFor(() => {
@@ -701,12 +735,16 @@ describe('Dashboard Client Component', () => {
     });
 
     // Click Details button to inspect error inside drawer
-    const detailsBtn = screen.getByRole('button', { name: /Details/i });
-    fireEvent.click(detailsBtn);
+    await act(async () => {
+      const detailsBtn = screen.getByRole('button', { name: /Details/i });
+      fireEvent.click(detailsBtn);
+    });
     expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
 
     // Close drawer again - badge is now marked read and dismissed
-    fireEvent.click(screen.getByRole('button', { name: /Close drawer/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Close drawer/i }));
+    });
     expect(screen.queryByText(/Audit Execution Error/i)).not.toBeInTheDocument();
   });
 
@@ -743,28 +781,49 @@ describe('Dashboard Client Component', () => {
       expect(screen.getByRole('button', { name: /AI Insights/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /AI Insights/i }));
-    fireEvent.click(screen.getByRole('button', { name: /Run DeepSeek Agent/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /AI Insights/i }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Run DeepSeek Agent/i }));
+    });
 
     // Minimize to background
-    fireEvent.click(screen.getByRole('button', { name: /Push to Background/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Push to Background/i }));
+    });
 
     // See running badge
     expect(screen.getByText(/Reasoning on network telemetry in background.../i)).toBeInTheDocument();
 
     // Click Open on running badge
-    const openBtn = screen.getByRole('button', { name: /Open/i });
-    fireEvent.click(openBtn);
+    await act(async () => {
+      const openBtn = screen.getByRole('button', { name: /Open/i });
+      fireEvent.click(openBtn);
+    });
     expect(screen.getByRole('dialog', { name: 'Continuous AI & NLG Engine' })).toBeInTheDocument();
 
-    // Resolve slow promise
-    resolver({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        success: true,
-        insight: { ...mockInitialData, id: 'ins-slow-1' },
-      }),
+    // Resolve slow promise inside act
+    await act(async () => {
+      resolver({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          insight: {
+            id: 'ins-slow-1',
+            createdAt: '2026-08-28T12:00:00Z',
+            healthScore: 95,
+            engineType: 'DEEPSEEK_AGENT',
+            executiveSummary: 'DeepSeek audit completed.',
+            persistingIssues: [],
+            resolvedIssues: [],
+            newIssues: [],
+            actionableSuggestions: [],
+          },
+        }),
+      });
     });
   });
 

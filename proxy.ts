@@ -24,8 +24,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Handle public auth API routes (login and logout)
-  if (pathname === '/api/auth/login' || pathname === '/api/auth/logout') {
+  // Handle public auth and health API routes (login, logout, health probe)
+  if (
+    pathname === '/api/auth/login' ||
+    pathname === '/api/auth/logout' ||
+    pathname === '/api/health'
+  ) {
     return NextResponse.next();
   }
 

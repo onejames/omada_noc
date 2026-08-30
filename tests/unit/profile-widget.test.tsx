@@ -10,6 +10,7 @@ vi.mock('next/navigation', () => ({
     push: mockPush,
     refresh: mockRefresh,
   }),
+  usePathname: () => '/',
 }));
 
 describe('ProfileWidget Component', () => {
@@ -116,7 +117,21 @@ describe('ProfileWidget Component', () => {
     });
   });
 
-  it('renders Sign In link when user is unauthenticated', async () => {
+  it('redirects to /login when /api/auth/me returns 401 on protected page', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ authenticated: false, user: null }),
+    });
+
+    render(<ProfileWidget />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/login');
+    });
+  });
+
+  it('renders Sign In link when user is unauthenticated on login page', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,

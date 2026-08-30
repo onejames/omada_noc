@@ -6,18 +6,8 @@ import { useRouter, usePathname } from 'next/navigation';
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
 
 export default function InactivityTracker() {
-  let router: ReturnType<typeof useRouter> | null = null;
-  let pathname: string | null = null;
-
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    router = useRouter();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    pathname = usePathname();
-  } catch {
-    // Graceful fallback during isolated unit testing
-  }
-
+  const router = useRouter();
+  const pathname = usePathname();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {

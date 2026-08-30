@@ -24,13 +24,18 @@ export interface OllamaModelInfo {
   size: number;
 }
 
-const DEFAULT_OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'deepseek-r1:7b';
+export function getOllamaBaseUrl(): string {
+  return process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+}
+
+export function getOllamaDefaultModel(): string {
+  return process.env.OLLAMA_MODEL || 'deepseek-r1:7b';
+}
 
 /**
  * Checks if local Ollama server is running and returns available models.
  */
-export async function getOllamaStatus(baseUrl = DEFAULT_OLLAMA_URL): Promise<{
+export async function getOllamaStatus(baseUrl = getOllamaBaseUrl()): Promise<{
   online: boolean;
   models: string[];
   error?: string;
@@ -68,8 +73,8 @@ export async function getOllamaStatus(baseUrl = DEFAULT_OLLAMA_URL): Promise<{
 export async function generateNeuralAiInsight(
   systemPrompt: string,
   userPrompt: string,
-  model = DEFAULT_MODEL,
-  baseUrl = DEFAULT_OLLAMA_URL
+  model = getOllamaDefaultModel(),
+  baseUrl = getOllamaBaseUrl()
 ): Promise<OllamaGenerateResponse> {
   const startTime = Date.now();
 

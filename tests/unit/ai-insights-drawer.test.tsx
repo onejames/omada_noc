@@ -223,7 +223,8 @@ describe('AiInsightsDrawer Component', () => {
       return Promise.reject(new Error('Unknown url'));
     });
 
-    fireEvent.click(triggerBtn);
+    const triggerBtn2 = screen.getByRole('button', { name: /Trigger NLG Audit/i });
+    fireEvent.click(triggerBtn2);
     await waitFor(() => {
       expect(screen.getByText(/Failed to execute deterministic NLG audit/i)).toBeInTheDocument();
     });
